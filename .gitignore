@@ -1,0 +1,8 @@
+
+# Build
+Makefile
+*.make
+bin/
+
+# IDE
+.vscode/
