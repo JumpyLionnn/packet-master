@@ -27,6 +27,8 @@ typedef struct {
     void(*free)(void*);
 } Allocator;
 
+
+
 typedef struct {
     Writer* writer;
     Allocator allocator;
@@ -36,8 +38,6 @@ typedef struct {
     Reader* reader;
     Allocator allocator;
 } Deserializer;
-
-
 
 typedef enum {
     Status_Success = 0,
@@ -54,9 +54,21 @@ typedef struct {
     ResultStatus status;
     union {
         int write_error;
-        int test;
     } error_info;
 } Result;
+
+typedef struct {
+    uint8_t* data;
+    size_t capacity;
+    size_t size;
+} Buffer;
+
+Buffer create_buffer(size_t capacity);
+void free_buffer(Buffer* buffer);
+int push_bytes(Buffer* buffer, uint8_t* data, size_t size);
+
+Serializer create_serializer(Writer* writer, Allocator allocator);
+Deserializer create_deserializer(Reader* reader, Allocator allocator);
 
 // serialize uint8_t
 void serialize_uint8(Serializer* serializer, uint8_t value, Result* result);

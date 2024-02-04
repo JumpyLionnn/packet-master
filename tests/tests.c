@@ -2,55 +2,7 @@
 #include <stdio.h>
 #include <packet_master.h>
 #include <string.h>
-
-int expect_int_eq(int a, int b) {
-    if (a == b) {
-        return 0;
-    }
-    else {
-        printf("Test failed: expected %i == %i.\n", a, b);
-        return 1;
-    }
-}
-
-int expect_uint8_eq(uint8_t a, uint8_t b) {
-    if (a == b) {
-        return 0;
-    }
-    else {
-        printf("Test failed: expected %hhu == %hhu.\n", a, b);
-        return 1;
-    }
-}
-
-int expect_size_eq(size_t a, size_t b) {
-    if (a == b) {
-        return 0;
-    }
-    else {
-        printf("Test failed: expected %u == %u.\n", (uint32_t)a, (uint32_t)b);
-        return 1;
-    }
-}
-
-int expect_success(Result result) {
-    if (result.status == Status_Success) {
-        return 0;
-    }
-    else {
-        printf("Test failed: Result was failure: %s.\n", status_to_string(result.status));
-        return 1;
-    }
-}
-int expect_status(Result result, ResultStatus status) {
-    if (result.status == status) {
-        return 0;
-    }
-    else {
-        printf("Test failed: Expected result to be '%s' but got '%s'.\n", status_to_string(status), status_to_string(result.status));
-        return 1;
-    }
-}
+#include "test.h"
 
 
 static Allocator allocator = {
@@ -70,27 +22,9 @@ size_t min(size_t a, size_t b) {
 }
 
 typedef struct {
-    uint8_t* data;
-    size_t capacity;
-    size_t size;
-} Buffer;
-
-typedef struct {
     Buffer* buffer;
     size_t index;
 } BufferReader;
-
-Buffer create_buffer(size_t capacity) {
-    return (Buffer) {
-        .data = calloc(capacity, 1),
-        .capacity = capacity,
-        .size = 0
-    };
-}
-
-void free_buffer(Buffer* buffer) {
-    free(buffer->data);
-}
 
 BufferReader read_buffer(Buffer* buffer) {
     return (BufferReader) {
@@ -99,17 +33,8 @@ BufferReader read_buffer(Buffer* buffer) {
     };
 }
 
-int write_data(void* data, uint8_t* incoming_data, size_t data_size) {
-    Buffer* buffer = data;
-    if (data_size > buffer->capacity - buffer->size) {
-        // expand
-        buffer->capacity = min(buffer->capacity * 1.5, buffer->size + data_size);
-        buffer->data = realloc(buffer->data, buffer->capacity);
-        memset(buffer->data + buffer->size + data_size, 0, buffer->capacity - buffer->size - data_size);
-    }
-    memcpy(buffer->data + buffer->size, incoming_data, data_size);
-    buffer->size += data_size;
-    return 0;
+int write_data(void* data, uint8_t* incoming_data, size_t size) {
+    return push_bytes((Buffer*)data, incoming_data, size);
 }
 
 uint8_t* read_data(void* data, size_t data_size) {

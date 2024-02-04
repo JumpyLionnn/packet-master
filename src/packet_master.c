@@ -25,6 +25,43 @@ const char* status_to_string(ResultStatus status) {
     }  
 }
 
+Buffer create_buffer(size_t capacity) {
+    return (Buffer) {
+        .data = calloc(capacity, 1),
+        .capacity = capacity,
+        .size = 0
+    };
+}
+
+void free_buffer(Buffer* buffer) {
+    free(buffer->data);
+}
+
+int push_bytes(Buffer* buffer, uint8_t* data, size_t size) {
+    if (size > buffer->capacity - buffer->size) {
+        // expand
+        buffer->capacity = min(buffer->capacity * 1.5, buffer->size + size);
+        buffer->data = realloc(buffer->data, buffer->capacity);
+        memset(buffer->data + buffer->size + size, 0, buffer->capacity - buffer->size - size);
+    }
+    memcpy(buffer->data + buffer->size, data, size);
+    buffer->size += size;
+    return 0;
+}
+
+Serializer create_serializer(Writer* writer, Allocator allocator) {
+    return (Serializer) {
+        .writer = writer,
+        .allocator = allocator
+    };
+}
+Deserializer create_deserializer(Reader* reader, Allocator allocator) {
+    return (Deserializer) {
+        .reader = reader,
+        .allocator = allocator
+    };
+}
+
 void serialize_uint8(Serializer* serializer, uint8_t value, Result* result) {
     int success = write(serializer->writer, value);
     if (success != 0) {
