@@ -42,6 +42,15 @@ int expect_success(Result result) {
         return 1;
     }
 }
+int expect_status(Result result, ResultStatus status) {
+    if (result.status == status) {
+        return 0;
+    }
+    else {
+        printf("Test failed: Expected result to be '%s' but got '%s'.\n", status_to_string(status), status_to_string(result.status));
+        return 1;
+    }
+}
 
 
 static Allocator allocator = {
@@ -66,6 +75,11 @@ typedef struct {
     size_t size;
 } Buffer;
 
+typedef struct {
+    Buffer* buffer;
+    size_t index;
+} BufferReader;
+
 Buffer create_buffer(size_t capacity) {
     return (Buffer) {
         .data = calloc(capacity, 1),
@@ -76,6 +90,13 @@ Buffer create_buffer(size_t capacity) {
 
 void free_buffer(Buffer* buffer) {
     free(buffer->data);
+}
+
+BufferReader read_buffer(Buffer* buffer) {
+    return (BufferReader) {
+        .buffer = buffer,
+        .index = 0
+    };
 }
 
 int write_data(void* data, uint8_t* incoming_data, size_t data_size) {
@@ -91,6 +112,15 @@ int write_data(void* data, uint8_t* incoming_data, size_t data_size) {
     return 0;
 }
 
+uint8_t* read_data(void* data, size_t data_size) {
+    BufferReader* reader = data;
+    if (data_size > reader->buffer->size - reader->index) {
+        return NULL;
+    }
+    uint8_t* bytes = reader->buffer->data + reader->index;
+    reader->index += data_size;
+    return bytes;
+}
 
 int test_serializer() {
     int failed = 0;
@@ -104,9 +134,37 @@ int test_serializer() {
         .writer = &writer,
         .allocator = allocator
     };
-    failed += expect_success(serialize_uint8(&serializer, 2));
+    {
+        Result result;
+        serialize_uint8(&serializer, 2, &result);
+        failed += expect_success(result);
+    }
     failed += expect_uint8_eq(*(buffer.data + 0), 2);
     failed += expect_size_eq(buffer.size, 1);
+
+
+    BufferReader buf_reader = read_buffer(&buffer);
+    Reader reader = {
+        .read = read_data,
+        .data = &buf_reader  
+    };
+    Deserializer deserializer = {
+        .allocator = allocator,
+        .reader = &reader 
+    };
+
+    {
+        Result result;
+        failed += expect_uint8_eq(deserialize_uint8(&deserializer, &result), 2);
+        failed += expect_success(result);
+    }
+
+    {
+        Result result;
+        failed += expect_uint8_eq(deserialize_uint8(&deserializer, &result), 0);
+        failed += expect_status(result, Status_ReadFailed);
+    }
+
     free_buffer(&buffer);
 
     return failed;

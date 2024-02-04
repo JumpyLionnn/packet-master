@@ -1,10 +1,15 @@
 #include "packet_master.h"
 
-
 int write(Writer* writer, uint8_t value) {
-    printf("Writing data\n");
-    writer->write(writer->data, &value, 1);
+    return writer->write(writer->data, &value, 1);
 }
+
+uint8_t* read(Reader* reader, size_t size) {
+    return reader->read(reader->data, size);
+}
+
+
+#define BIT_MASK(start, count) (~((~0) >> (count)) >> (start))
 
 const char* status_to_string(ResultStatus status) {
     switch (status)
@@ -20,15 +25,23 @@ const char* status_to_string(ResultStatus status) {
     }  
 }
 
-Result serialize_uint8(Serializer* serializer, uint8_t value) {
+void serialize_uint8(Serializer* serializer, uint8_t value, Result* result) {
     int success = write(serializer->writer, value);
     if (success != 0) {
-        return (Result){
-            .status = Status_WriteFailed,
-            .error_info.write_error = success
-        };
+        result->status = Status_WriteFailed;
+        result->error_info.write_error = success;
+        return;
     }
-    return (Result){
-        .status = Status_Success
-    };
+    result->status = Status_Success;
+    return;
+}
+
+uint8_t deserialize_uint8(Deserializer* deserializer, Result* result) {
+    uint8_t* value = read(deserializer->reader, 1);
+    if (value == NULL) {
+        result->status = Status_ReadFailed;
+        return 0;
+    }
+    result->status = Status_Success;
+    return *value;
 }
