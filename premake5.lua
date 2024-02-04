@@ -19,6 +19,8 @@ project "Tests"
         "src/"
     }
 
+    warnings "Extra"
+
     filter "system:windows"
 		systemversion "latest"
 
