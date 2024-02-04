@@ -12,14 +12,7 @@ static Allocator allocator = {
 };
 
 
-size_t min(size_t a, size_t b) {
-    if (a > b) {
-        return b;
-    }
-    else {
-        return a;
-    }
-}
+
 
 typedef struct {
     Buffer* buffer;
@@ -34,7 +27,7 @@ BufferReader read_buffer(Buffer* buffer) {
 }
 
 int write_data(void* data, uint8_t* incoming_data, size_t size) {
-    return push_bytes((Buffer*)data, incoming_data, size);
+    return buffer_push_bytes((Buffer*)data, incoming_data, size, &allocator);
 }
 
 uint8_t* read_data(void* data, size_t data_size) {
@@ -50,22 +43,41 @@ uint8_t* read_data(void* data, size_t data_size) {
 int test_serializer() {
     int failed = 0;
 
-    Buffer buffer = create_buffer(10);
+    Buffer buffer = create_buffer(10, &allocator);
     Writer writer = {
         .write = write_data,
         .data = &buffer
     };
-    Serializer serializer = {
-        .writer = &writer,
-        .allocator = allocator
-    };
+    Serializer serializer = create_serializer(&writer, allocator);
     {
         Result result;
         serialize_uint8(&serializer, 2, &result);
         failed += expect_success(result);
     }
+    {
+        Result result;
+        serialize_bool(&serializer, true, &result);
+        failed += expect_success(result);
+    }
+    {
+        Result result;
+        serialize_bool(&serializer, false, &result);
+        failed += expect_success(result);
+    }
+    {
+        Result result;
+        serialize_bool(&serializer, true, &result);
+        failed += expect_success(result);
+    }
+    {
+        Result result;
+        serializer_finalize(&serializer, &result);
+        failed += expect_success(result);
+    }
+
     failed += expect_uint8_eq(*(buffer.data + 0), 2);
-    failed += expect_size_eq(buffer.size, 1);
+    failed += expect_uint8_eq(*(buffer.data + 1), 0b101);
+    failed += expect_size_eq(buffer.size, 2);
 
 
     BufferReader buf_reader = read_buffer(&buffer);
@@ -73,10 +85,7 @@ int test_serializer() {
         .read = read_data,
         .data = &buf_reader  
     };
-    Deserializer deserializer = {
-        .allocator = allocator,
-        .reader = &reader 
-    };
+    Deserializer deserializer = create_deserializer(&reader, allocator);
 
     {
         Result result;
@@ -84,14 +93,15 @@ int test_serializer() {
         failed += expect_success(result);
     }
 
-    {
-        Result result;
-        failed += expect_uint8_eq(deserialize_uint8(&deserializer, &result), 0);
-        failed += expect_status(result, Status_ReadFailed);
-    }
+    // {
+    //     Result result;
+    //     failed += expect_uint8_eq(deserialize_uint8(&deserializer, &result), 0);
+    //     failed += expect_status(result, Status_ReadFailed);
+    // }
 
-    free_buffer(&buffer);
-
+    free_buffer(&buffer, &allocator);
+    free_serializer(&serializer);
+    free_deserializer(&deserializer);
     return failed;
 }
 

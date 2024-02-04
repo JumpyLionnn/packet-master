@@ -1,4 +1,5 @@
 #include "test.h"
+#include <stdio.h>
 
 int expect_int_eq(int a, int b) {
     if (a == b) {

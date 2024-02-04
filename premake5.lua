@@ -20,13 +20,14 @@ project "Tests"
     }
 
     warnings "Extra"
+    debugger "GDB"
+    symbols "On"
 
     filter "system:windows"
 		systemversion "latest"
 
     filter "configurations:Debug"
         defines {"DEBUG"}
-        symbols "On"
     
     filter "configurations:Release"
         defines {"NDEBUG"}
