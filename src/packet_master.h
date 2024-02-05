@@ -36,29 +36,48 @@ typedef struct {
 } Buffer;
 
 // Internal
+// a reference to a byte in the buffer which contains some free bits
 typedef struct {
     size_t index;
     size_t start;
     size_t end;
-} FreeBits;
+} SerializerFreeBits;
 
+// Internal
+// a byte with some free bits in it for read
 typedef struct {
-    FreeBits* data;
+    uint8_t byte;
+    uint8_t start;
+    uint8_t end;
+} DeserializerFreeBits;
+
+
+// Internal
+typedef struct {
+    SerializerFreeBits* data;
     size_t count;
     size_t capacity;
-} FreeBitsVector;
+} SerializerFreeBitsVector;
+
+// Internal
+typedef struct {
+    DeserializerFreeBits* data;
+    size_t count;
+    size_t capacity;
+} DeserializerFreeBitsVector;
 
 typedef struct {
     Writer* writer;
     Allocator allocator;
     Buffer buffer;
-    FreeBitsVector free_bits;
+    SerializerFreeBitsVector free_bits;
     size_t start_index;
 } Serializer;
 
 typedef struct {
     Reader* reader;
     Allocator allocator;
+    DeserializerFreeBitsVector free_bits;
 } Deserializer;
 
 typedef enum {
@@ -87,12 +106,12 @@ Buffer create_buffer(size_t capacity, Allocator* allocator);
 void free_buffer(Buffer* buffer, Allocator* allocator);
 int buffer_push_bytes(Buffer* buffer, uint8_t* data, size_t size, Allocator* allocator);
 
-FreeBitsVector create_free_bits_vector(size_t capacity, Allocator* allocator);
-FreeBits* vector_push(FreeBitsVector* vector, FreeBits value, Allocator* allocator);
-FreeBits* vector_first(FreeBitsVector* vector);
-int vector_remove(FreeBitsVector* vector, size_t index);
-void vector_clear(FreeBitsVector* vector);
-void free_vector(FreeBitsVector* vector, Allocator* allocator);
+SerializerFreeBitsVector create_free_bits_ref_vector(size_t capacity, Allocator* allocator);
+SerializerFreeBits* vector_push(SerializerFreeBitsVector* vector, SerializerFreeBits value, Allocator* allocator);
+SerializerFreeBits* vector_first(SerializerFreeBitsVector* vector);
+int vector_remove(SerializerFreeBitsVector* vector, size_t index);
+void vector_clear(SerializerFreeBitsVector* vector);
+void free_vector(SerializerFreeBitsVector* vector, Allocator* allocator);
 
 Serializer create_serializer(Writer* writer, Allocator allocator);
 Deserializer create_deserializer(Reader* reader, Allocator allocator);
@@ -108,6 +127,9 @@ uint8_t deserialize_uint8(Deserializer* deserializer, Result* result);
 
 // serializes a boolean value
 void serialize_bool(Serializer* serializer, bool value, Result* result);
+
+// Deserialize bool, returns false on failure with an error in the result
+bool deserialize_bool(Deserializer* deserializer, Result* result);
 
 void flush_buffer(Serializer* serializer, Result* result);
 void serializer_finalize(Serializer* serializer, Result* result);

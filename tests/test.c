@@ -21,6 +21,16 @@ int expect_uint8_eq(uint8_t a, uint8_t b) {
     }
 }
 
+int expect_bool_eq(bool a, bool b) {
+    if (a == b) {
+        return 0;
+    }
+    else {
+        printf("Test failed: expected %s == %s.\n", a ? "true" : "false", b ? "true" : "false");
+        return 1;
+    }
+}
+
 int expect_size_eq(size_t a, size_t b) {
     if (a == b) {
         return 0;
