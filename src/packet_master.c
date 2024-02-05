@@ -297,8 +297,44 @@ void free_deserializer(Deserializer* deserializer) {
     deser_free_bits_free(&deserializer->free_bits, &deserializer->allocator);
 }
 
-SerializerFreeBits* find_free_bits(Serializer* serializer) {
-   return ser_free_bits_first(&serializer->free_bits);
+SerializerFreeBits* serializer_get_free_bits(Serializer* serializer, Result* result) {
+   SerializerFreeBits* free_bits = ser_free_bits_first(&serializer->free_bits);
+   if (free_bits == NULL) {
+        SerializerFreeBits value = {
+            .end = 8,
+            .start = 0,
+            .index = serializer->buffer.size + serializer->start_index
+        };
+        int pushed = buffer_push_byte(&serializer->buffer, 0, &serializer->allocator);
+        free_bits = ser_free_bits_push(&serializer->free_bits, value, &serializer->allocator);
+        if (free_bits == NULL || pushed != 0) {
+            result->status = Status_MemoryAllocationFailed;
+            return NULL;
+        }
+    }
+    return free_bits;
+}
+
+DeserializerFreeBits* deserializer_get_free_bits(Deserializer* deserializer, Result* result) {
+   DeserializerFreeBits* free_bits = deser_free_bits_first(&deserializer->free_bits);
+   if (free_bits == NULL) {
+        uint8_t* byte = read(deserializer->reader, 1);
+        if (byte == NULL) {
+            result->status = Status_ReadFailed;
+            return NULL;
+        }
+        DeserializerFreeBits value = {
+            .end = 8,
+            .start = 0,
+            .byte = *byte
+        };
+        free_bits = deser_free_bits_push(&deserializer->free_bits, value, &deserializer->allocator);
+        if (free_bits == NULL) {
+            result->status = Status_MemoryAllocationFailed;
+            return NULL;
+        }
+    }
+    return free_bits;
 }
 
 void serialize_uint8(Serializer* serializer, uint8_t value, Result* result) {
@@ -365,19 +401,9 @@ bool deserialize_bool(Deserializer* deserializer, Result* result) {
 
 
 void serializer_push_bit(Serializer* serializer, uint8_t value, Result* result) {
-    SerializerFreeBits* free_bits = find_free_bits(serializer);
-    if (free_bits == NULL) {
-        SerializerFreeBits value = {
-            .end = 8,
-            .start = 0,
-            .index = serializer->buffer.size + serializer->start_index
-        };
-        int pushed = buffer_push_byte(&serializer->buffer, 0, &serializer->allocator);
-        free_bits = ser_free_bits_push(&serializer->free_bits, value, &serializer->allocator);
-        if (free_bits == NULL || pushed != 0) {
-            result->status = Status_MemoryAllocationFailed;
-            return;
-        }
+    SerializerFreeBits* free_bits = serializer_get_free_bits(serializer, result);
+    if (result->status != Status_Success) {
+        return;
     }
     uint8_t mask = BIT_MASK(free_bits->start, value, uint8_t);
     size_t byte_index = free_bits->index - serializer->start_index;
@@ -394,18 +420,9 @@ void serializer_push_bit(Serializer* serializer, uint8_t value, Result* result) 
 }
 
 uint8_t deserializer_read_bit(Deserializer* deserializer, Result* result) {
-    DeserializerFreeBits* free_bits = deser_free_bits_first(&deserializer->free_bits);
-    if (free_bits == NULL) {
-        uint8_t* byte = read(deserializer->reader, 1);
-        free_bits = deser_free_bits_push(&deserializer->free_bits, (DeserializerFreeBits){
-            .byte = *byte,
-            .end = 8,
-            .start = 0
-        }, &deserializer->allocator);
-        if (free_bits == NULL) {
-            result->status = Status_MemoryAllocationFailed;
-            return 0;
-        }
+    DeserializerFreeBits* free_bits = deserializer_get_free_bits(deserializer, result);
+    if (result->status != Status_Success) {
+        return 0;
     }
     uint8_t value = (free_bits->byte & BIT_MASK(free_bits->start, 1, uint8_t)) >> free_bits->start;
     free_bits->start++;

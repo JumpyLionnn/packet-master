@@ -28,8 +28,8 @@ void expect_bool_eq_impl(bool left, bool right, const char* left_text, const cha
     }
     else {
         fprintf(stderr, "%s:%zu: Test failed, expected left to equal right:\n", file, line);
-        fprintf(stderr, "\tleft(%s): %s\n", left ? "true" : "right", left_text);
-        fprintf(stderr, "\tright(%s): %s\n", right ? "true" : "right", right_text);
+        fprintf(stderr, "\tleft(%s): %s\n", left ? "true" : "false", left_text);
+        fprintf(stderr, "\tright(%s): %s\n", right ? "true" : "false", right_text);
         g_tests_state.failed++;
     }
 }
