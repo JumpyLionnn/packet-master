@@ -49,6 +49,59 @@ const char* status_to_string(ResultStatus status) {
     }  
 }
 
+int count_leading_zeros_uint_fallback(unsigned int num) {
+    int higher_bits = 32;
+    // the center bit
+    int center = 16;
+    while (center != 0) {
+        unsigned int higher_half = num >> center;
+        if (higher_half != 0) {
+            // checking the higher half of center
+            higher_bits = higher_bits - center;
+            num = higher_half;
+        }
+        // keeping the lower half
+        center = center >> 1;
+    }
+    return higher_bits - num;
+}
+
+#ifdef _MSC_VER 
+#include <immintrin.h>
+#endif
+
+int count_leading_zeros_uint(unsigned int num) {
+    #if defined(__GNUC__) || defined(__GNUG__) || defined(__clang__)
+        // supported in clang and gcc
+        // handling zero as it is an undefined behaviour for clz
+        if (num == 0) {
+            return sizeof(num) * 8;
+        }
+        else {
+            return __builtin_clz(num);
+        }
+    #elif defined(_MSC_VER) 
+        // supported by msvc (not tested)
+        // handling zero as it is an undefined behaviour for clz
+        if (num == 0) {
+            return sizeof(num) * 8;
+        }
+        else {
+            return __lzcnt(num);
+        }
+    #else
+        return count_leading_zeros_uint_fallback(num);
+    #endif
+}
+
+
+uint8_t max_bits_u8(uint8_t bits) {
+    return bits;
+}
+uint8_t max_u8(uint8_t number) {
+    return 8 - (uint8_t)(count_leading_zeros_uint((unsigned int)number) - (sizeof(unsigned int) - 1) * 8);
+}
+
 Buffer create_buffer(size_t capacity, Allocator* allocator) {
     return (Buffer) {
         .data = allocator->alloc(capacity),

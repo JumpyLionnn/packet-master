@@ -101,6 +101,11 @@ typedef struct {
 } Result;
 
 
+int count_leading_zeros_uint_fallback(unsigned int num);
+int count_leading_zeros_uint(unsigned int num);
+
+uint8_t max_bits_u8(uint8_t bits);
+uint8_t max_u8(uint8_t number);
 
 Buffer create_buffer(size_t capacity, Allocator* allocator);
 void free_buffer(Buffer* buffer, Allocator* allocator);

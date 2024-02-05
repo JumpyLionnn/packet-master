@@ -37,6 +37,25 @@ uint8_t* read_data(void* data, size_t data_size) {
     return bytes;
 }
 
+void test_count_bits() {
+    // native
+    expect_int_eq(count_leading_zeros_uint(0b1), 31);
+    expect_int_eq(count_leading_zeros_uint(0b10), 30);
+    expect_int_eq(count_leading_zeros_uint(0b100), 29);
+    expect_int_eq(count_leading_zeros_uint(0b1000), 28);
+    expect_int_eq(count_leading_zeros_uint(0b1110000), 25);
+    expect_int_eq(count_leading_zeros_uint(0b111001100), 23);
+    expect_int_eq(count_leading_zeros_uint(0), 32);
+
+    expect_int_eq(count_leading_zeros_uint_fallback(0b1), 31);
+    expect_int_eq(count_leading_zeros_uint_fallback(0b10), 30);
+    expect_int_eq(count_leading_zeros_uint_fallback(0b100), 29);
+    expect_int_eq(count_leading_zeros_uint_fallback(0b1000), 28);
+    expect_int_eq(count_leading_zeros_uint_fallback(0b1110000), 25);
+    expect_int_eq(count_leading_zeros_uint_fallback(0b111001100), 23);
+    expect_int_eq(count_leading_zeros_uint_fallback(0), 32);
+}
+
 void test_serializer() {
     Buffer buffer = create_buffer(10, &allocator);
     Writer writer = {
@@ -51,7 +70,7 @@ void test_serializer() {
     }
     {
         Result result;
-        serialize_uint8_max(&serializer, 3, 7, &result);
+        serialize_uint8_max(&serializer, 3, max_bits_u8(7), &result);
         expect_success(result);
     }
     {
@@ -95,7 +114,8 @@ void test_serializer() {
     }
     {
         Result result;
-        expect_uint8_eq(deserialize_uint8_max(&deserializer, 7, &result), 3);
+        expect_uint8_eq(max_u8(127), 7);
+        expect_uint8_eq(deserialize_uint8_max(&deserializer, max_u8(127), &result), 3);
         expect_success(result);
     }
     {
@@ -130,6 +150,7 @@ int main() {
 
     // tests
     test_serializer();
+    test_count_bits();
 
     printf("\nTest result: %s. %zu passed; %zu failed;\n", g_tests_state.failed == 0 ? "ok" : "FAILED",  g_tests_state.passed, g_tests_state.failed);
     if (g_tests_state.failed == 0) {
