@@ -1,61 +1,59 @@
 #include "test.h"
 #include <stdio.h>
 
-int expect_int_eq(int a, int b) {
-    if (a == b) {
-        return 0;
+#define expect_eq_impl(type, type_name, format)\
+void expect_ ## type_name ## _eq_impl(type left, type right, const char* left_text, const char* right_text, const char* file, size_t line) {\
+    if (left == right) {\
+        g_tests_state.passed++;\
+    }\
+    else {\
+        g_tests_state.failed++;\
+        fprintf(stderr, "%s:%zu: Test failed, expected left to equal right:\n", file, line);\
+        fprintf(stderr, "\tleft("format"): %s\n", left, left_text);\
+        fprintf(stderr, "\tright("format"): %s\n", right, right_text);\
+    }\
+}
+
+TestsState g_tests_state = {
+    .failed = 0,
+    .passed = 0
+};
+
+expect_eq_impl(int, int, "%i")
+expect_eq_impl(uint8_t, uint8, "%hhu")
+
+void expect_bool_eq_impl(bool left, bool right, const char* left_text, const char* right_text, const char* file, size_t line) {
+    if (left == right) {
+        g_tests_state.passed++;
     }
     else {
-        printf("Test failed: expected %i == %i.\n", a, b);
-        return 1;
+        fprintf(stderr, "%s:%zu: Test failed, expected left to equal right:\n", file, line);
+        fprintf(stderr, "\tleft(%s): %s\n", left ? "true" : "right", left_text);
+        fprintf(stderr, "\tright(%s): %s\n", right ? "true" : "right", right_text);
+        g_tests_state.failed++;
     }
 }
 
-int expect_uint8_eq(uint8_t a, uint8_t b) {
-    if (a == b) {
-        return 0;
-    }
-    else {
-        printf("Test failed: expected %hhu == %hhu.\n", a, b);
-        return 1;
-    }
-}
+expect_eq_impl(size_t, size, "%zu")
 
-int expect_bool_eq(bool a, bool b) {
-    if (a == b) {
-        return 0;
-    }
-    else {
-        printf("Test failed: expected %s == %s.\n", a ? "true" : "false", b ? "true" : "false");
-        return 1;
-    }
-}
-
-int expect_size_eq(size_t a, size_t b) {
-    if (a == b) {
-        return 0;
-    }
-    else {
-        printf("Test failed: expected %u == %u.\n", (uint32_t)a, (uint32_t)b);
-        return 1;
-    }
-}
-
-int expect_success(Result result) {
+void expect_success_impl(Result result, const char* result_text, const char* file, size_t line) {
     if (result.status == Status_Success) {
-        return 0;
+        g_tests_state.passed++;
     }
     else {
-        printf("Test failed: Result was failure: %s.\n", status_to_string(result.status));
-        return 1;
+        fprintf(stderr, "%s:%zu: Test failed, Result was failure: %s in %s.\n", file, line, status_to_string(result.status), result_text);
+        g_tests_state.failed++;
     }
 }
-int expect_status(Result result, ResultStatus status) {
+
+void expect_status_impl(Result result, ResultStatus status, const char* result_text, const char* status_text, const char* file, size_t line) {
     if (result.status == status) {
-        return 0;
+        g_tests_state.passed++;
     }
     else {
-        printf("Test failed: Expected result to be '%s' but got '%s'.\n", status_to_string(status), status_to_string(result.status));
-        return 1;
+        fprintf(stderr, "%s:%zu: Test failed, expected left to equal right:\n", file, line);
+        fprintf(stderr, "\tleft(%s): %s\n", status_to_string(result.status), result_text);
+        fprintf(stderr, "\tright(%s): %s\n", status_to_string(status), status_text);
+        g_tests_state.failed++;
     }
 }

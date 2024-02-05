@@ -37,9 +37,7 @@ uint8_t* read_data(void* data, size_t data_size) {
     return bytes;
 }
 
-int test_serializer() {
-    int failed = 0;
-
+void test_serializer() {
     Buffer buffer = create_buffer(10, &allocator);
     Writer writer = {
         .write = write_data,
@@ -49,38 +47,38 @@ int test_serializer() {
     {
         Result result;
         serialize_uint8(&serializer, 2, &result);
-        failed += expect_success(result);
+        expect_success(result);
     }
     {
         Result result;
         serialize_uint8_max(&serializer, 3, 7, &result);
-        failed += expect_success(result);
+        expect_success(result);
     }
     {
         Result result;
         serialize_bool(&serializer, true, &result);
-        failed += expect_success(result);
+        expect_success(result);
     }
     {
         Result result;
         serialize_bool(&serializer, false, &result);
-        failed += expect_success(result);
+        expect_success(result);
     }
     {
         Result result;
         serialize_bool(&serializer, true, &result);
-        failed += expect_success(result);
+        expect_success(result);
     }
     {
         Result result;
         serializer_finalize(&serializer, &result);
-        failed += expect_success(result);
+        expect_success(result);
     }
 
-    failed += expect_uint8_eq(*(buffer.data + 0), 2);
-    failed += expect_uint8_eq(*(buffer.data + 1), 0b10000011);
-    failed += expect_uint8_eq(*(buffer.data + 2), 0b10);
-    failed += expect_size_eq(buffer.size, 3);
+    expect_uint8_eq(*(buffer.data + 0), 2);
+    expect_uint8_eq(*(buffer.data + 1), 0b10000011);
+    expect_uint8_eq(*(buffer.data + 2), 0b10);
+    expect_size_eq(buffer.size, 3);
 
 
     BufferReader buf_reader = read_buffer(&buffer);
@@ -92,54 +90,52 @@ int test_serializer() {
 
     {
         Result result;
-        failed += expect_uint8_eq(deserialize_uint8(&deserializer, &result), 2);
-        failed += expect_success(result);
+        expect_uint8_eq(deserialize_uint8(&deserializer, &result), 2);
+        expect_success(result);
     }
     {
         Result result;
-        failed += expect_uint8_eq(deserialize_uint8_max(&deserializer, 7, &result), 3);
-        failed += expect_success(result);
+        expect_uint8_eq(deserialize_uint8_max(&deserializer, 7, &result), 3);
+        expect_success(result);
     }
     {
         Result result;
-        failed += expect_bool_eq(deserialize_bool(&deserializer, &result), true);
-        failed += expect_success(result);
+        expect_bool_eq(deserialize_bool(&deserializer, &result), true);
+        expect_success(result);
     }
     {
         Result result;
-        failed += expect_bool_eq(deserialize_bool(&deserializer, &result), false);
-        failed += expect_success(result);
+        expect_bool_eq(deserialize_bool(&deserializer, &result), false);
+        expect_success(result);
     }
     {
         Result result;
-        failed += expect_bool_eq(deserialize_bool(&deserializer, &result), true);
-        failed += expect_success(result);
+        expect_bool_eq(deserialize_bool(&deserializer, &result), true);
+        expect_success(result);
     }
 
     {
         Result result;
-        failed += expect_uint8_eq(deserialize_uint8(&deserializer, &result), 0);
-        failed += expect_status(result, Status_ReadFailed);
+        expect_uint8_eq(deserialize_uint8(&deserializer, &result), 0);
+        expect_status(result, Status_ReadFailed);
     }
 
     free_deserializer(&deserializer);
     free_serializer(&serializer);
     free_buffer(&buffer, &allocator);
-    return failed;
 }
 
 
 int main() {
-    int failed = 0;
 
-    failed += test_serializer();
+    // tests
+    test_serializer();
 
-    if (failed == 0) {
-        printf("All tests passed\n");
+    printf("\nTest result: %s. %zu passed; %zu failed;\n", g_tests_state.failed == 0 ? "ok" : "FAILED",  g_tests_state.passed, g_tests_state.failed);
+    if (g_tests_state.failed == 0) {
         return EXIT_SUCCESS;
     }
     else {
-        printf("%i tests failed\n", failed);
         return EXIT_FAILURE;
     }
 }
