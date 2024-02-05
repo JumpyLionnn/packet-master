@@ -29,6 +29,8 @@ void assert_impl(bool value, const char* expression, size_t line, const char* fi
 #define assert(condition)
 #endif
 
+#define unimplemented() fprintf("%s:%u: Attempt to run code marked as unimplemented.\n", __FILE__, __LINE__)
+
 const char* status_to_string(ResultStatus status) {
     switch (status)
     {
@@ -138,9 +140,12 @@ SerializerFreeBits* ser_free_bits_push(SerializerFreeBitsVector* vector, Seriali
 
 int ser_free_bits_remove(SerializerFreeBitsVector* vector, size_t index) {
     assert(index < vector->count);
-    void* move_res = memmove(vector->data + index, vector->data + index + 1, vector->count - index - 1);
+    if (index < vector->count - 1) {
+        void* move_res = memmove(vector->data + index, vector->data + index + 1, vector->count - index - 1);
+        return (int)(size_t)move_res;
+    }
     vector->count--;
-    return (size_t)move_res > 0 ? 1 : 0;
+    return 0;
 }
 
 SerializerFreeBits* ser_free_bits_first(SerializerFreeBitsVector* vector) {
@@ -241,32 +246,53 @@ SerializerFreeBits* find_free_bits(Serializer* serializer) {
 }
 
 void serialize_uint8(Serializer* serializer, uint8_t value, Result* result) {
-    result->status = Status_Success;
-    int push_res = buffer_push_byte(&serializer->buffer, value, &serializer->allocator);
-    if (push_res != 0) {
-        result->status = Status_MemoryAllocationFailed;
-        return;
-    }
-    flush_buffer(serializer, result);
+    serialize_uint8_max(serializer, value, 8, result);
 }
 
 uint8_t deserialize_uint8(Deserializer* deserializer, Result* result) {
+    result->status = Status_Success;
     uint8_t* value = read(deserializer->reader, 1);
     if (value == NULL) {
         result->status = Status_ReadFailed;
         return 0;
     }
-    result->status = Status_Success;
     return *value;
+}
+
+// the number will be stored regularly but will have some free space for later bits
+// NOTE: passing a value with more bits than the max bits is an undefined behaviour, this is not a validator
+void serialize_uint8_max(Serializer* serializer, uint8_t value, uint8_t max_bits, Result* result) {
+    result->status = Status_Success;
+    if (max_bits < 8) {
+        SerializerFreeBits free_bits = {
+            .end = 8,
+            .start = max_bits,
+            .index = serializer->buffer.size + serializer->start_index
+        };
+        SerializerFreeBits* free_bits_push_res = ser_free_bits_push(&serializer->free_bits, free_bits, &serializer->allocator);
+        if (free_bits_push_res == NULL) {
+            result->status = Status_MemoryAllocationFailed;
+            return;
+        }
+    }
+    int byte_push_res = buffer_push_byte(&serializer->buffer, value, &serializer->allocator);
+    if (byte_push_res != 0) {
+        result->status = Status_MemoryAllocationFailed;
+        return;
+    }
+    flush_buffer(serializer, result);
+    
 }
 
 void serializer_push_bit(Serializer* serializer, uint8_t value, Result* result);
 void serialize_bool(Serializer* serializer, bool value, Result* result) {
+    result->status = Status_Success;
     serializer_push_bit(serializer, (uint8_t)value, result);
 }
 
 uint8_t deserializer_read_bit(Deserializer* deserializer, Result* result);
 bool deserialize_bool(Deserializer* deserializer, Result* result) {
+    result->status = Status_Success;
     return (bool)deserializer_read_bit(deserializer, result);
 }
 
@@ -357,6 +383,7 @@ void flush_buffer(Serializer* serializer, Result* result) {
 
 
 void serializer_finalize(Serializer* serializer, Result* result) {
+    result->status = Status_Success;
     ser_free_bits_clear(&serializer->free_bits);
     flush_buffer(serializer, result);
 }

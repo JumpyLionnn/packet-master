@@ -125,6 +125,10 @@ void serialize_uint8(Serializer* serializer, uint8_t value, Result* result);
 // Deserialize uint8_t, returns 0 on failure with an error in the result
 uint8_t deserialize_uint8(Deserializer* deserializer, Result* result);
 
+// serialize uint8_t with max amount of bits specified in order to reduce the required storage space
+// NOTE: passing a value with more bits than the max bits is an undefined behaviour, this is not a validator
+void serialize_uint8_max(Serializer* serializer, uint8_t value, uint8_t max_bits, Result* result);
+
 // serializes a boolean value
 void serialize_bool(Serializer* serializer, bool value, Result* result);
 
