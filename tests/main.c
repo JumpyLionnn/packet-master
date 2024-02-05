@@ -90,13 +90,19 @@ void test_serializer() {
     }
     {
         Result result;
+        // 5 = 0b101
+        serialize_uint8_max(&serializer, 5, max_bits_u8(4), &result);
+        expect_success(result);
+    }
+    {
+        Result result;
         serializer_finalize(&serializer, &result);
         expect_success(result);
     }
 
     expect_uint8_eq(*(buffer.data + 0), 2);
     expect_uint8_eq(*(buffer.data + 1), 0b10000011);
-    expect_uint8_eq(*(buffer.data + 2), 0b10);
+    expect_uint8_eq(*(buffer.data + 2), 0b010110);
     expect_size_eq(buffer.size, 3);
 
 
