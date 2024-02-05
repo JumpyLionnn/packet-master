@@ -196,9 +196,12 @@ DeserializerFreeBits* deser_free_bits_push(DeserializerFreeBitsVector* vector, D
 
 int deser_free_bits_remove(DeserializerFreeBitsVector* vector, size_t index) {
     assert(index < vector->count);
-    void* move_res = memmove(vector->data + index, vector->data + index + 1, vector->count - index - 1);
+    if (index < vector->count - 1) {
+        void* move_res = memmove(vector->data + index, vector->data + index + 1, vector->count - index - 1);
+        return (int)(size_t)move_res;
+    }
     vector->count--;
-    return (size_t)move_res > 0 ? 1 : 0;
+    return 0;
 }
 
 DeserializerFreeBits* deser_free_bits_first(DeserializerFreeBitsVector* vector) {
@@ -250,17 +253,9 @@ void serialize_uint8(Serializer* serializer, uint8_t value, Result* result) {
 }
 
 uint8_t deserialize_uint8(Deserializer* deserializer, Result* result) {
-    result->status = Status_Success;
-    uint8_t* value = read(deserializer->reader, 1);
-    if (value == NULL) {
-        result->status = Status_ReadFailed;
-        return 0;
-    }
-    return *value;
+    return deserialize_uint8_max(deserializer, 8, result);
 }
 
-// the number will be stored regularly but will have some free space for later bits
-// NOTE: passing a value with more bits than the max bits is an undefined behaviour, this is not a validator
 void serialize_uint8_max(Serializer* serializer, uint8_t value, uint8_t max_bits, Result* result) {
     result->status = Status_Success;
     if (max_bits < 8) {
@@ -282,6 +277,25 @@ void serialize_uint8_max(Serializer* serializer, uint8_t value, uint8_t max_bits
     }
     flush_buffer(serializer, result);
     
+}
+
+uint8_t deserialize_uint8_max(Deserializer* deserializer, uint8_t max_bits, Result* result) {
+    result->status = Status_Success;
+    uint8_t* byte = read(deserializer->reader, 1);
+    if (byte == NULL) {
+        result->status = Status_ReadFailed;
+        return 0;
+    }
+    if (max_bits < 8) {
+        DeserializerFreeBits free_bits = {
+            .byte = *byte,
+            .start = max_bits,
+            .end = 8
+        };
+        deser_free_bits_push(&deserializer->free_bits, free_bits, &deserializer->allocator);
+    }
+    uint8_t value = *byte & BIT_MASK(0, max_bits, uint8_t);
+    return value;
 }
 
 void serializer_push_bit(Serializer* serializer, uint8_t value, Result* result);

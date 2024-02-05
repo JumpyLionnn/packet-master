@@ -95,27 +95,32 @@ int test_serializer() {
         failed += expect_uint8_eq(deserialize_uint8(&deserializer, &result), 2);
         failed += expect_success(result);
     }
-    // {
-    //     Result result;
-    //     failed += expect_bool_eq(deserialize_bool(&deserializer, &result), true);
-    //     failed += expect_success(result);
-    // }
-    // {
-    //     Result result;
-    //     failed += expect_bool_eq(deserialize_bool(&deserializer, &result), false);
-    //     failed += expect_success(result);
-    // }
-    // {
-    //     Result result;
-    //     failed += expect_bool_eq(deserialize_bool(&deserializer, &result), true);
-    //     failed += expect_success(result);
-    // }
+    {
+        Result result;
+        failed += expect_uint8_eq(deserialize_uint8_max(&deserializer, 7, &result), 3);
+        failed += expect_success(result);
+    }
+    {
+        Result result;
+        failed += expect_bool_eq(deserialize_bool(&deserializer, &result), true);
+        failed += expect_success(result);
+    }
+    {
+        Result result;
+        failed += expect_bool_eq(deserialize_bool(&deserializer, &result), false);
+        failed += expect_success(result);
+    }
+    {
+        Result result;
+        failed += expect_bool_eq(deserialize_bool(&deserializer, &result), true);
+        failed += expect_success(result);
+    }
 
-    // {
-    //     Result result;
-    //     failed += expect_uint8_eq(deserialize_uint8(&deserializer, &result), 0);
-    //     failed += expect_status(result, Status_ReadFailed);
-    // }
+    {
+        Result result;
+        failed += expect_uint8_eq(deserialize_uint8(&deserializer, &result), 0);
+        failed += expect_status(result, Status_ReadFailed);
+    }
 
     free_deserializer(&deserializer);
     free_serializer(&serializer);
