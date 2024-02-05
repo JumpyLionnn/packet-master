@@ -348,7 +348,6 @@ uint8_t deserialize_uint8(Deserializer* deserializer, Result* result) {
 #define U8_FREE_BITS_STORAGE_MIN 4
 
 void serializer_push_bits(Serializer* serializer, uint64_t value, size_t count, Result* result);
-
 void serialize_uint8_max(Serializer* serializer, uint8_t value, uint8_t max_bits, Result* result) {
     result->status = Status_Success;
     if (max_bits <= U8_FREE_BITS_STORAGE_MIN) {
@@ -376,23 +375,29 @@ void serialize_uint8_max(Serializer* serializer, uint8_t value, uint8_t max_bits
     flush_buffer(serializer, result);
 }
 
+uint64_t deserializer_read_bits(Deserializer* deserializer, size_t count, Result* result);
 uint8_t deserialize_uint8_max(Deserializer* deserializer, uint8_t max_bits, Result* result) {
     result->status = Status_Success;
-    uint8_t* byte = read(deserializer->reader, 1);
-    if (byte == NULL) {
-        result->status = Status_ReadFailed;
-        return 0;
+    if (max_bits <= U8_FREE_BITS_STORAGE_MIN) {
+        return (uint8_t)deserializer_read_bits(deserializer, max_bits, result);
     }
-    if (max_bits < 8) {
-        DeserializerFreeBits free_bits = {
-            .byte = *byte,
-            .start = max_bits,
-            .end = 8
-        };
-        deser_free_bits_push(&deserializer->free_bits, free_bits, &deserializer->allocator);
+    else {
+        uint8_t* byte = read(deserializer->reader, 1);
+        if (byte == NULL) {
+            result->status = Status_ReadFailed;
+            return 0;
+        }
+        if (max_bits < 8) {
+            DeserializerFreeBits free_bits = {
+                .byte = *byte,
+                .start = max_bits,
+                .end = 8
+            };
+            deser_free_bits_push(&deserializer->free_bits, free_bits, &deserializer->allocator);
+        }
+        uint8_t value = *byte & BIT_MASK(0, max_bits, uint8_t);
+        return value;
     }
-    uint8_t value = *byte & BIT_MASK(0, max_bits, uint8_t);
-    return value;
 }
 
 void serializer_push_bit(Serializer* serializer, uint8_t value, Result* result);
@@ -426,7 +431,6 @@ void serializer_push_bit(Serializer* serializer, uint8_t value, Result* result) 
         flush_buffer(serializer, result);
     }
 }
-
 uint8_t deserializer_read_bit(Deserializer* deserializer, Result* result) {
     DeserializerFreeBits* free_bits = deserializer_get_free_bits(deserializer, result);
     if (result->status != Status_Success) {
@@ -466,6 +470,30 @@ void serializer_push_bits(Serializer* serializer, uint64_t value, size_t count, 
             flush_buffer(serializer, result);
         }
     }
+}
+uint64_t deserializer_read_bits(Deserializer* deserializer, size_t count, Result* result) {
+    uint64_t value = 0;
+    size_t index = 0;
+    while (count > 0) {
+        DeserializerFreeBits* free_bits = deserializer_get_free_bits(deserializer, result);
+        if (free_bits == NULL) {
+            assert(result->status != Status_Success);
+            return 0;
+        }
+        size_t read_count = min(free_bits->end - free_bits->start, count);
+        uint64_t data = (free_bits->byte & BIT_MASK(free_bits->start, read_count, uint64_t)) >> free_bits->start;
+        value |= data << index;
+        index += read_count;
+        count -= read_count;
+        free_bits->start += read_count;
+        if (free_bits->start >= free_bits->end) {
+            if (deser_free_bits_remove(&deserializer->free_bits, 0) != 0) {
+                result->status = Status_MemoryAllocationFailed;
+                return 0;
+            }
+        }
+    }
+    return value;
 }
 
 void flush_buffer(Serializer* serializer, Result* result) {

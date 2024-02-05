@@ -142,6 +142,11 @@ void test_serializer() {
 
     {
         Result result;
+        expect_uint8_eq(deserialize_uint8_max(&deserializer, max_bits_u8(4), &result), 5);
+        expect_status(result, Status_Success);
+    }
+    {
+        Result result;
         expect_uint8_eq(deserialize_uint8(&deserializer, &result), 0);
         expect_status(result, Status_ReadFailed);
     }
