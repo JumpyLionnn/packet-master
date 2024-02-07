@@ -138,6 +138,14 @@ void serialize_uint8_max(Serializer* serializer, uint8_t value, uint8_t max_bits
 // NOTE: passing a value with more bits than the max bits is an undefined behaviour, this is not a validator
 uint8_t deserialize_uint8_max(Deserializer* deserializer, uint8_t max_bits, Result* result);
 
+
+// serialize uint16_t
+void serialize_uint16(Serializer* serializer, uint16_t value, Result* result);
+
+// serialize uint16_t with max amount of bits specified in order to reduce the required storage space
+// NOTE: passing a value with more bits than the max bits is an undefined behaviour, this is not a validator
+void serialize_uint16_max(Serializer* serializer, uint16_t value, uint8_t max_bits, Result* result);
+
 // serializes a boolean value
 void serialize_bool(Serializer* serializer, bool value, Result* result);
 

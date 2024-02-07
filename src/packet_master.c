@@ -94,6 +94,92 @@ int count_leading_zeros_uint(unsigned int num) {
     #endif
 }
 
+size_t min(size_t a, size_t b) {
+    if (a > b) {
+        return b;
+    }
+    else {
+        return a;
+    }
+}
+
+size_t max(size_t a, size_t b) {
+    if (a > b) {
+        return a;
+    }
+    else {
+        return b;
+    }
+}
+
+uint32_t ceil_divide_uint32(uint32_t a, uint32_t b) {
+    return (a + b - 1) / b;
+}
+
+enum Endianness {
+    LittleEndian = 0,
+    BigEndian
+};
+
+enum Endianness detect_endianness() {
+    int n = 1;
+    if(*(char *)&n == 1) {
+        return LittleEndian;
+    }
+    else {
+        return BigEndian;
+    }
+}
+
+uint16_t swap_byte_order_uint16_fallback(uint16_t value) {
+    return ((value & 0x00FF) << 8) | ((value & 0xFF00) >> 8);
+}
+
+uint16_t swap_byte_order_uint16(uint16_t value){
+    // TODO: Add special case for msvc
+    #if defined(__GNUC__) || defined(__GNUG__) || defined(__clang__)
+        return __builtin_bswap16(value);
+    #else
+        return swap_byte_order_uint16_fallback(value);
+    #endif
+}
+
+uint32_t swap_byte_order_uint32_fallback(uint32_t value) {
+    return ((value & 0x000000FF) << 24) | ((value & 0x0000FF00) << 8) | ((value & 0x00FF0000) >> 8) | ((value & 0xFF000000) >> 24);
+}
+
+uint32_t swap_byte_order_uint32(uint32_t value){
+    // TODO: Add special case for msvc
+    #if defined(__GNUC__) || defined(__GNUG__) || defined(__clang__)
+        return __builtin_bswap32(value);
+    #else
+        return swap_byte_order_uint16_fallback(value);
+    #endif
+}
+
+
+uint16_t system_endianness_to_little_endian_uint16(uint16_t value) {
+    if (detect_endianness() == BigEndian) {
+        return swap_byte_order_uint16(value);
+    }
+    else {
+        return value;
+    }
+}
+
+uint32_t system_endianness_to_little_endian_uint32(uint32_t value) {
+    if (detect_endianness() == BigEndian) {
+        return swap_byte_order_uint32(value);
+    }
+    else {
+        return value;
+    }
+}
+
+uint32_t count_used_bits_uint32(uint32_t value) {
+    return (uint32_t)(sizeof(unsigned int) * 8 - count_leading_zeros_uint((unsigned int)value));
+} 
+
 
 uint8_t max_bits_u8(uint8_t bits) {
     return bits;
@@ -112,24 +198,6 @@ Buffer create_buffer(size_t capacity, Allocator* allocator) {
 
 void free_buffer(Buffer* buffer, Allocator* allocator) {
     allocator->free(buffer->data);
-}
-
-size_t min(size_t a, size_t b) {
-    if (a > b) {
-        return b;
-    }
-    else {
-        return a;
-    }
-}
-
-size_t max(size_t a, size_t b) {
-    if (a > b) {
-        return a;
-    }
-    else {
-        return b;
-    }
 }
 
 int buffer_push_bytes(Buffer* buffer, uint8_t* data, size_t size, Allocator* allocator) {
@@ -399,6 +467,48 @@ uint8_t deserialize_uint8_max(Deserializer* deserializer, uint8_t max_bits, Resu
         return value;
     }
 }
+
+void serialize_uint16(Serializer* serializer, uint16_t value, Result* result) {
+    serialize_uint16_max(serializer, value, 16, result);
+}
+
+void serialize_uint16_max(Serializer* serializer, uint16_t value, uint8_t max_bits, Result* result) {
+    result->status = Status_Success;
+    if (max_bits <= 8) {
+        serialize_uint8_max(serializer, (uint8_t)value, max_bits, result);
+    }
+    else {
+        uint32_t used_bits = count_used_bits_uint32(value);
+        uint32_t used_bytes = ceil_divide_uint32(used_bits, 8);
+        uint32_t byte_count_size = count_used_bits_uint32(sizeof(uint16_t) - 1); 
+        assert(byte_count_size == 1); // should be 1 for uint16_t
+        uint16_t little_endian = system_endianness_to_little_endian_uint16(value);
+        printf("used_bytes: %u", used_bytes);
+        serializer_push_bits(serializer, used_bytes - 1, byte_count_size, result);
+        if (result->status != Status_Success) {
+            return;
+        }
+        if (buffer_push_bytes(&serializer->buffer, (uint8_t*)&little_endian, used_bytes, &serializer->allocator) != 0) {
+            result->status = Status_MemoryAllocationFailed;
+            return;
+        }
+        uint32_t free_bits_start = used_bits % 8;
+        uint32_t free_bits_count = 8 - free_bits_start;
+        if (free_bits_count > 0) {
+            SerializerFreeBits free_bits = {
+                .start = free_bits_start,
+                .end = 8,
+                .index = serializer->buffer.size - 1
+            };
+            if (ser_free_bits_push(&serializer->free_bits, free_bits, &serializer->allocator) == NULL) {
+                result->status = Status_MemoryAllocationFailed;
+                return;
+            }
+        }
+        flush_buffer(serializer, result);
+    }
+}
+
 
 void serializer_push_bit(Serializer* serializer, uint8_t value, Result* result);
 void serialize_bool(Serializer* serializer, bool value, Result* result) {
