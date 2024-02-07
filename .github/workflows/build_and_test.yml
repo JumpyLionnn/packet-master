@@ -1,0 +1,25 @@
+name: build and test
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+    
+
+    steps:
+    - uses: actions/checkout@v3
+    - uses: abel0b/setup-premake@v2.3
+      with:
+        version: "5.0.0-beta2"
+    - name: premake
+      run: premake gmake2
+    - name: make
+      run: make
+    - name: Running tests
+      run: bin/Debug/Tests/Tests
