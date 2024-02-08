@@ -103,6 +103,15 @@ size_t min(size_t a, size_t b) {
     }
 }
 
+uint16_t min_uint16(uint16_t a, uint16_t b) {
+    if (a > b) {
+        return b;
+    }
+    else {
+        return a;
+    }
+}
+
 size_t max(size_t a, size_t b) {
     if (a > b) {
         return a;
@@ -158,7 +167,7 @@ uint32_t swap_byte_order_uint32(uint32_t value){
 }
 
 
-uint16_t system_endianness_to_little_endian_uint16(uint16_t value) {
+uint16_t native_endianness_to_little_endian_uint16(uint16_t value) {
     if (detect_endianness() == BigEndian) {
         return swap_byte_order_uint16(value);
     }
@@ -167,9 +176,18 @@ uint16_t system_endianness_to_little_endian_uint16(uint16_t value) {
     }
 }
 
-uint32_t system_endianness_to_little_endian_uint32(uint32_t value) {
+uint32_t native_endianness_to_little_endian_uint32(uint32_t value) {
     if (detect_endianness() == BigEndian) {
         return swap_byte_order_uint32(value);
+    }
+    else {
+        return value;
+    }
+}
+
+uint16_t little_endian_to_native_endianness_uint16(uint16_t value) {
+    if (detect_endianness() == BigEndian) {
+        return swap_byte_order_uint16(value);
     }
     else {
         return value;
@@ -471,6 +489,9 @@ uint8_t deserialize_uint8_max(Deserializer* deserializer, uint8_t max_bits, Resu
 void serialize_uint16(Serializer* serializer, uint16_t value, Result* result) {
     serialize_uint16_max(serializer, value, 16, result);
 }
+uint16_t deserialize_uint16(Deserializer* deserializer, Result* result) {
+    return deserialize_uint16_max(deserializer, 16, result);
+}
 
 void serialize_uint16_max(Serializer* serializer, uint16_t value, uint8_t max_bits, Result* result) {
     result->status = Status_Success;
@@ -479,11 +500,11 @@ void serialize_uint16_max(Serializer* serializer, uint16_t value, uint8_t max_bi
     }
     else {
         uint32_t used_bits = count_used_bits_uint32(value);
+        assert(used_bits <= max_bits);
         uint32_t used_bytes = ceil_divide_uint32(used_bits, 8);
         uint32_t byte_count_size = count_used_bits_uint32(sizeof(uint16_t) - 1); 
         assert(byte_count_size == 1); // should be 1 for uint16_t
-        uint16_t little_endian = system_endianness_to_little_endian_uint16(value);
-        printf("used_bytes: %u", used_bytes);
+        uint16_t little_endian = native_endianness_to_little_endian_uint16(value);
         serializer_push_bits(serializer, used_bytes - 1, byte_count_size, result);
         if (result->status != Status_Success) {
             return;
@@ -492,9 +513,8 @@ void serialize_uint16_max(Serializer* serializer, uint16_t value, uint8_t max_bi
             result->status = Status_MemoryAllocationFailed;
             return;
         }
-        uint32_t free_bits_start = used_bits % 8;
-        uint32_t free_bits_count = 8 - free_bits_start;
-        if (free_bits_count > 0) {
+        if (used_bytes * 8 > max_bits) {
+            uint32_t free_bits_start = used_bits % 8;
             SerializerFreeBits free_bits = {
                 .start = free_bits_start,
                 .end = 8,
@@ -506,6 +526,42 @@ void serialize_uint16_max(Serializer* serializer, uint16_t value, uint8_t max_bi
             }
         }
         flush_buffer(serializer, result);
+    }
+}
+
+uint16_t deserialize_uint16_max(Deserializer* deserializer, uint8_t max_bits, Result* result) {
+    result->status = Status_Success;
+    if (max_bits <= 8) {
+        return deserialize_uint8_max(deserializer, max_bits, result);
+    }
+    else {
+        uint32_t byte_count_size = count_used_bits_uint32(sizeof(uint16_t) - 1); 
+        assert(byte_count_size == 1);
+        uint32_t byte_count = deserializer_read_bits(deserializer, byte_count_size, result) + 1;
+        if (result->status != Status_Success) {
+            return 0;
+        }
+        uint8_t* bytes = read(deserializer->reader, byte_count);
+        if (bytes == NULL) {
+            result->status = Status_ReadFailed;
+            return 0;
+        }
+
+        uint16_t little_endian = (*(uint16_t*)bytes) & BIT_MASK(0, min_uint16(byte_count * 8, max_bits), uint16_t);
+        uint16_t value = little_endian_to_native_endianness_uint16(little_endian);
+        if (byte_count * 8 > max_bits) {
+            uint16_t start = max_bits % 8;
+            DeserializerFreeBits free_bits = {
+                .start = start,
+                .end = 8,
+                .byte = bytes[byte_count - 1]
+            };
+            if (deser_free_bits_push(&deserializer->free_bits, free_bits, &deserializer->allocator) == NULL) {
+                result->status = Status_MemoryAllocationFailed;
+                return 0;
+            }
+        }
+        return value;
     }
 }
 

@@ -65,6 +65,7 @@ bool _ts_expect_impl(bool value, const char* text, const char* file, size_t line
 
 expect_eq_impl(int, int, "%i")
 expect_eq_impl(uint8_t, uint8, "%hhu")
+expect_eq_impl(uint16_t, uint16, "%hhu")
 
 const char* bool_to_str(bool value) {
     if (value) {

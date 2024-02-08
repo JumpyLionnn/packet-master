@@ -10,6 +10,7 @@
 #define ts_expect(condition) (void)_ts_expect_impl((condition), #condition, __FILE__, __LINE__)
 #define ts_expect_int_eq(left, right) (void)_ts_expect_int_eq_impl((left), (right), #left, #right, __FILE__, __LINE__)
 #define ts_expect_uint8_eq(left, right) (void)_ts_expect_uint8_eq_impl((left), (right), #left, #right, __FILE__, __LINE__)
+#define ts_expect_uint16_eq(left, right) (void)_ts_expect_uint16_eq_impl((left), (right), #left, #right, __FILE__, __LINE__)
 #define ts_expect_bool_eq(left, right) (void)_ts_expect_bool_eq_impl((left), (right), #left, #right, __FILE__, __LINE__)
 #define ts_expect_size_eq(left, right) (void)_ts_expect_size_eq_impl((left), (right), #left, #right, __FILE__, __LINE__)
 

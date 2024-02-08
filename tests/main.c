@@ -96,6 +96,18 @@ void test_serializer(Serializer* serializer) {
     }
     {
         Result result;
+        // 5 = 0b101
+        serialize_uint16(serializer, 127, &result);
+        ts_expect_success(result);
+    }
+    {
+        Result result;
+        // 5 = 0b101
+        serialize_uint16_max(serializer, 511, max_bits_u8(10), &result);
+        ts_expect_success(result);
+    }
+    {
+        Result result;
         serializer_finalize(serializer, &result);
         ts_expect_success(result);
     }
@@ -109,7 +121,11 @@ void validate_serialized_data(Buffer* buffer) {
     ts_expect_uint8_eq(buffer->data[2], 0b01010110);
     ts_expect_uint8_eq(buffer->data[3], 0b11111111);
     ts_expect_uint8_eq(buffer->data[4], 0b00000011);
-    ts_expect_size_eq(buffer->size, 5);
+    ts_expect_uint8_eq(buffer->data[5], 0b01111111);
+    ts_expect_uint8_eq(buffer->data[6], 0b1);
+    ts_expect_uint8_eq(buffer->data[7], 0b11111111);
+    ts_expect_uint8_eq(buffer->data[8], 0b01);
+    ts_expect_size_eq(buffer->size, 9);
 }
 
 
@@ -137,7 +153,7 @@ void test_deserializer(Deserializer* deserializer) {
     }
     {
         Result result;
-        ts_expect_bool_eq(deserialize_bool(deserializer, &result), true);
+        ts_expect_uint16_eq(deserialize_bool(deserializer, &result), true);
         ts_expect_success(result);
     }
 
@@ -146,11 +162,26 @@ void test_deserializer(Deserializer* deserializer) {
         ts_expect_uint8_eq(deserialize_uint8_max(deserializer, max_bits_u8(4), &result), 5);
         ts_expect_status(result, Status_Success);
     }
-    // {
-    //     Result result;
-    //     ts_expect_uint8_eq(deserialize_uint8(deserializer, &result), 0);
-    //     ts_expect_status(result, Status_ReadFailed);
-    // }
+    {
+        Result result;
+        ts_expect_uint16_eq(deserialize_uint16(deserializer, &result), 1023);
+        ts_expect_status(result, Status_Success);
+    }
+    {
+        Result result;
+        ts_expect_uint16_eq(deserialize_uint16(deserializer, &result), 127);
+        ts_expect_status(result, Status_Success);
+    }
+    {
+        Result result;
+        ts_expect_uint16_eq(deserialize_uint16_max(deserializer, max_bits_u8(10), &result), 511);
+        ts_expect_status(result, Status_Success);
+    }
+    {
+        Result result;
+        ts_expect_uint8_eq(deserialize_uint8(deserializer, &result), 0);
+        ts_expect_status(result, Status_ReadFailed);
+    }
 }
 
 int main() {
