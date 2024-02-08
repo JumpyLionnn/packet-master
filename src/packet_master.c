@@ -13,7 +13,7 @@ uint8_t* read(Reader* reader, size_t size) {
     return reader->read(reader->data, size);
 }
 
-#define BYTE_SIZE CHAR_BIT
+#define BYTE_SIZE 8
 #define BIT_MASK(start, count, type) ((type)~((type)(~(type)0) << (type)(count)) << (type)(start))
 
 #define ENABLE_ASSERT
@@ -588,8 +588,79 @@ uint16_t deserialize_uint16_max(Deserializer* deserializer, uint8_t max_bits, Re
     }
 }
 
+void serialize_uint32(Serializer* serializer, uint32_t value, Result* result) {
+    serialize_uint32_max(serializer, value, 32, result);
+}
 
 void serializer_push_bit(Serializer* serializer, uint8_t value, Result* result);
+void serialize_uint32_max(Serializer* serializer, uint32_t value, uint8_t max_bits, Result* result) {
+    result->status = Status_Success;
+    if (max_bits <= 16) {
+        serialize_uint16_max(serializer, (uint16_t)value, max_bits, result);
+    }
+    else {
+        uint32_t used_bits = count_used_bits_uint32(value);
+        assert(used_bits <= max_bits);
+        uint32_t used_bytes = ceil_divide_uint32(used_bits, BYTE_SIZE);
+        uint8_t max_bytes = ceil_divide_uint32(max_bits, BYTE_SIZE);
+        uint32_t byte_count_size = count_used_bits_uint32(max_bytes - 1); 
+        // example:
+        // max_bits = 20 // 3 bytes max
+        // used_bytes 3 // 01...
+        // used_bytes 2 // 1...
+        // used_bytes 1 // 00...
+
+        // need to check whether -1 is going to change the amount of stored bits
+        // if it does and if the byte count is the middle store only 1 otherwise store 0 and then the rest of the number (-1 if the number is above the middle)
+        // otherwise store the byte count normally
+        // why: the middle number has the highest probability(without any extra data) to exist therefore we optimize the size even further and remove 1 unnecessary bit
+
+        // generic way to be easy to port to different types
+        if (count_used_bits_uint32(max_bytes - 2) != byte_count_size) {
+            // if the max bytes is 3 and the used bytes is 2
+            uint8_t middle_byte = (max_bytes + 1) / 2;
+            if (used_bytes == middle_byte) {
+                serializer_push_bit(serializer, 1, result);
+            }
+            else {
+                uint32_t byte_count = used_bytes;
+                if (byte_count > middle_byte) {
+                    byte_count--;
+                }
+                // the first bit is zero to indicate there are some length bits after it
+                serializer_push_bits(serializer, (byte_count - 1) << 1, byte_count_size, result);
+            }
+        }
+        else {
+            serializer_push_bits(serializer, used_bytes - 1, byte_count_size, result);
+        }
+        if (result->status != Status_Success) {
+            return;
+        }
+
+        uint32_t little_endian = native_endianness_to_little_endian_uint32(value);
+        if (buffer_push_bytes(&serializer->buffer, (uint8_t*)&little_endian, used_bytes, &serializer->allocator) != 0) {
+            result->status = Status_MemoryAllocationFailed;
+            return;
+        }
+        if (used_bytes * BYTE_SIZE > max_bits) {
+            uint32_t free_bits_start = max_bits % BYTE_SIZE;
+            SerializerFreeBits free_bits = {
+                .start = free_bits_start,
+                .end = BYTE_SIZE,
+                .index = serializer->buffer.size - 1
+            };
+            if (ser_free_bits_push(&serializer->free_bits, free_bits, &serializer->allocator) == NULL) {
+                result->status = Status_MemoryAllocationFailed;
+                return;
+            }
+        }
+        flush_buffer(serializer, result);
+    }
+}
+
+
+
 void serialize_bool(Serializer* serializer, bool value, Result* result) {
     result->status = Status_Success;
     serializer_push_bit(serializer, (uint8_t)value, result);
