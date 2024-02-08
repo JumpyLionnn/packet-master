@@ -13,7 +13,7 @@ uint8_t* read(Reader* reader, size_t size) {
     return reader->read(reader->data, size);
 }
 
-
+#define BYTE_SIZE CHAR_BIT
 #define BIT_MASK(start, count, type) ((type)~((type)(~(type)0) << (type)(count)) << (type)(start))
 
 #define ENABLE_ASSERT
@@ -75,14 +75,14 @@ int count_leading_zeros_uint(unsigned int num) {
         // supported in clang and gcc
         // handling zero as it is an undefined behaviour for clz
         if (num == 0) {
-            return sizeof(num) * 8;
+            return sizeof(num) * BYTE_SIZE;
         }
         else {
             return __builtin_clz(num);
         }
     #elif defined(_MSC_VER) 
         if (num == 0) {
-            return sizeof(num) * 8;
+            return sizeof(num) * BYTE_SIZE;
         }
         else {
             return __lzcnt(num);
@@ -139,7 +139,7 @@ enum Endianness detect_endianness() {
 }
 
 uint16_t swap_byte_order_uint16_fallback(uint16_t value) {
-    return ((value & 0x00FF) << 8) | ((value & 0xFF00) >> 8);
+    return ((value & 0x00FF) << BYTE_SIZE) | ((value & 0xFF00) >> BYTE_SIZE);
 }
 
 uint16_t swap_byte_order_uint16(uint16_t value){
@@ -165,7 +165,7 @@ uint16_t swap_byte_order_uint16(uint16_t value){
 }
 
 uint32_t swap_byte_order_uint32_fallback(uint32_t value) {
-    return ((value & 0x000000FF) << 24) | ((value & 0x0000FF00) << 8) | ((value & 0x00FF0000) >> 8) | ((value & 0xFF000000) >> 24);
+    return ((value & 0x000000FF) << (BYTE_SIZE * 3)) | ((value & 0x0000FF00) << BYTE_SIZE) | ((value & 0x00FF0000) >> BYTE_SIZE) | ((value & 0xFF000000) >> (BYTE_SIZE * 3));
 }
 
 uint32_t swap_byte_order_uint32(uint32_t value){
@@ -218,7 +218,7 @@ uint16_t little_endian_to_native_endianness_uint16(uint16_t value) {
 }
 
 uint32_t count_used_bits_uint32(uint32_t value) {
-    return (uint32_t)(sizeof(unsigned int) * 8 - count_leading_zeros_uint((unsigned int)value));
+    return (uint32_t)(sizeof(unsigned int) * BYTE_SIZE - count_leading_zeros_uint((unsigned int)value));
 } 
 
 
@@ -226,7 +226,7 @@ uint8_t max_bits_u8(uint8_t bits) {
     return bits;
 }
 uint8_t max_u8(uint8_t number) {
-    return 8 - (uint8_t)(count_leading_zeros_uint((unsigned int)number) - (sizeof(unsigned int) - 1) * 8);
+    return BYTE_SIZE - (uint8_t)(count_leading_zeros_uint((unsigned int)number) - (sizeof(unsigned int) - 1) * BYTE_SIZE);
 }
 
 Buffer create_buffer(size_t capacity, Allocator* allocator) {
@@ -410,7 +410,7 @@ SerializerFreeBits* serializer_get_free_bits(Serializer* serializer, Result* res
    SerializerFreeBits* free_bits = ser_free_bits_first(&serializer->free_bits);
    if (free_bits == NULL) {
         SerializerFreeBits value = {
-            .end = 8,
+            .end = BYTE_SIZE,
             .start = 0,
             .index = serializer->buffer.size + serializer->start_index
         };
@@ -433,7 +433,7 @@ DeserializerFreeBits* deserializer_get_free_bits(Deserializer* deserializer, Res
             return NULL;
         }
         DeserializerFreeBits value = {
-            .end = 8,
+            .end = BYTE_SIZE,
             .start = 0,
             .byte = *byte
         };
@@ -447,11 +447,11 @@ DeserializerFreeBits* deserializer_get_free_bits(Deserializer* deserializer, Res
 }
 
 void serialize_uint8(Serializer* serializer, uint8_t value, Result* result) {
-    serialize_uint8_max(serializer, value, 8, result);
+    serialize_uint8_max(serializer, value, BYTE_SIZE, result);
 }
 
 uint8_t deserialize_uint8(Deserializer* deserializer, Result* result) {
-    return deserialize_uint8_max(deserializer, 8, result);
+    return deserialize_uint8_max(deserializer, BYTE_SIZE, result);
 }
 
 #define U8_FREE_BITS_STORAGE_MIN 4
@@ -524,7 +524,7 @@ void serialize_uint16_max(Serializer* serializer, uint16_t value, uint8_t max_bi
     else {
         uint32_t used_bits = count_used_bits_uint32(value);
         assert(used_bits <= max_bits);
-        uint32_t used_bytes = ceil_divide_uint32(used_bits, 8);
+        uint32_t used_bytes = ceil_divide_uint32(used_bits, BYTE_SIZE);
         uint32_t byte_count_size = count_used_bits_uint32(sizeof(uint16_t) - 1); 
         assert(byte_count_size == 1); // should be 1 for uint16_t
         uint16_t little_endian = native_endianness_to_little_endian_uint16(value);
@@ -536,11 +536,11 @@ void serialize_uint16_max(Serializer* serializer, uint16_t value, uint8_t max_bi
             result->status = Status_MemoryAllocationFailed;
             return;
         }
-        if (used_bytes * 8 > max_bits) {
-            uint32_t free_bits_start = max_bits % 8;
+        if (used_bytes * BYTE_SIZE > max_bits) {
+            uint32_t free_bits_start = max_bits % BYTE_SIZE;
             SerializerFreeBits free_bits = {
                 .start = free_bits_start,
-                .end = 8,
+                .end = BYTE_SIZE,
                 .index = serializer->buffer.size - 1
             };
             if (ser_free_bits_push(&serializer->free_bits, free_bits, &serializer->allocator) == NULL) {
@@ -554,7 +554,7 @@ void serialize_uint16_max(Serializer* serializer, uint16_t value, uint8_t max_bi
 
 uint16_t deserialize_uint16_max(Deserializer* deserializer, uint8_t max_bits, Result* result) {
     result->status = Status_Success;
-    if (max_bits <= 8) {
+    if (max_bits <= BYTE_SIZE) {
         return deserialize_uint8_max(deserializer, max_bits, result);
     }
     else {
@@ -572,11 +572,11 @@ uint16_t deserialize_uint16_max(Deserializer* deserializer, uint8_t max_bits, Re
 
         uint16_t little_endian = (*(uint16_t*)bytes) & BIT_MASK((uint16_t)0, min_uint16(byte_count * 8, max_bits), uint16_t);
         uint16_t value = little_endian_to_native_endianness_uint16(little_endian);
-        if (byte_count * 8 > max_bits) {
-            uint8_t start = max_bits % 8;
+        if (byte_count * BYTE_SIZE > max_bits) {
+            uint8_t start = max_bits % BYTE_SIZE;
             DeserializerFreeBits free_bits = {
                 .start = start,
-                .end = 8,
+                .end = BYTE_SIZE,
                 .byte = bytes[byte_count - 1]
             };
             if (deser_free_bits_push(&deserializer->free_bits, free_bits, &deserializer->allocator) == NULL) {
