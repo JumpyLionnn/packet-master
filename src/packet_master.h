@@ -154,9 +154,15 @@ uint16_t deserialize_uint16_max(Deserializer* serializer, uint8_t max_bits, Resu
 // serialize uint32_t
 void serialize_uint32(Serializer* serializer, uint32_t value, Result* result);
 
+// deserialize uint32_t
+uint32_t deserialize_uint32(Deserializer* deserializer, Result* result);
+
 // serialize uint32_t with max amount of bits specified in order to reduce the required storage space with some extra size optimizations
 // NOTE: passing a value with more bits than the max bits is an undefined behaviour, this is not a validator
 void serialize_uint32_max(Serializer* serializer, uint32_t value, uint8_t max_bits, Result* result);
+
+// deserialize uint32_t with max amount of bits specified in order to reduce the required storage space
+uint32_t deserialize_uint32_max(Deserializer* deserializer, uint8_t max_bits, Result* result);
 
 // serializes a boolean value
 void serialize_bool(Serializer* serializer, bool value, Result* result);

@@ -109,6 +109,14 @@ uint16_t min_uint16(uint16_t a, uint16_t b) {
         return a;
     }
 }
+uint32_t min_uint32(uint32_t a, uint32_t b) {
+    if (a > b) {
+        return b;
+    }
+    else {
+        return a;
+    }
+}
 
 size_t max_size(size_t a, size_t b) {
     if (a > b) {
@@ -211,6 +219,14 @@ uint32_t native_endianness_to_little_endian_uint32(uint32_t value) {
 uint16_t little_endian_to_native_endianness_uint16(uint16_t value) {
     if (detect_endianness() == BigEndian) {
         return swap_byte_order_uint16(value);
+    }
+    else {
+        return value;
+    }
+}
+uint32_t little_endian_to_native_endianness_uint32(uint32_t value) {
+    if (detect_endianness() == BigEndian) {
+        return swap_byte_order_uint32(value);
     }
     else {
         return value;
@@ -591,6 +607,9 @@ uint16_t deserialize_uint16_max(Deserializer* deserializer, uint8_t max_bits, Re
 void serialize_uint32(Serializer* serializer, uint32_t value, Result* result) {
     serialize_uint32_max(serializer, value, 32, result);
 }
+uint32_t deserialize_uint32(Deserializer* deserializer, Result* result) {
+    return deserialize_uint32_max(deserializer, 32, result);
+}
 
 void serializer_push_bit(Serializer* serializer, uint8_t value, Result* result);
 void serialize_uint32_max(Serializer* serializer, uint32_t value, uint8_t max_bits, Result* result) {
@@ -659,6 +678,71 @@ void serialize_uint32_max(Serializer* serializer, uint32_t value, uint8_t max_bi
     }
 }
 
+uint8_t deserializer_read_bit(Deserializer* deserializer, Result* result);
+uint32_t deserialize_uint32_max(Deserializer* deserializer, uint8_t max_bits, Result* result) {
+    result->status = Status_Success;
+    if (max_bits <= 16) {
+        return deserialize_uint16_max(deserializer, max_bits, result);
+    }
+    else {
+        uint8_t max_bytes = ceil_divide_uint32(max_bits, BYTE_SIZE);
+        uint32_t byte_count_size = count_used_bits_uint32(max_bytes - 1);
+        size_t byte_count;
+        if (count_used_bits_uint32(max_bytes - 2) != byte_count_size) {
+            uint8_t is_middle = deserializer_read_bit(deserializer, result);
+            if (result->status != Status_Success) {
+                return 0;
+            }
+            uint8_t middle_byte = (max_bytes + 1) / 2;
+            if (is_middle) {
+                byte_count = middle_byte;
+            }
+            else {
+                // middle byte = 2
+                // count is 1 or 0
+                // actual   3 or 1
+                uint64_t count = deserializer_read_bits(deserializer, byte_count_size - 1, result) + 1;
+                if (result->status != Status_Success) {
+                    return 0;
+                }
+                if (count + 1 >= middle_byte) {
+                    count++;
+                }
+                byte_count = count;
+            }
+        }
+        else {
+            byte_count = deserializer_read_bits(deserializer, byte_count_size, result) + 1;
+            if (result->status != Status_Success) {
+                return 0;
+            }
+        }
+
+        uint8_t* bytes = read(deserializer->reader, byte_count);
+        if (bytes == NULL) {
+            result->status = Status_ReadFailed;
+            return 0;
+        }
+        uint32_t max = min_uint32((uint32_t)max_bits, (uint32_t)(byte_count * BYTE_SIZE));
+        uint32_t little_endian = (*(uint32_t*)bytes) & BIT_MASK(0, min_uint32(max, 31), uint32_t);
+        uint32_t value = little_endian_to_native_endianness_uint32(little_endian);
+
+        if (byte_count * BYTE_SIZE > max_bits) {
+            uint8_t start = max_bits % 8;
+            DeserializerFreeBits free_bits = {
+                .byte = bytes[byte_count - 1],
+                .start = start,
+                .end = 8
+            };
+            if (deser_free_bits_push(&deserializer->free_bits, free_bits, &deserializer->allocator) == NULL) {
+                result->status = Status_MemoryAllocationFailed;
+                return 0;
+            }
+        }
+
+        return value;
+    }
+}
 
 
 void serialize_bool(Serializer* serializer, bool value, Result* result) {
@@ -666,7 +750,6 @@ void serialize_bool(Serializer* serializer, bool value, Result* result) {
     serializer_push_bit(serializer, (uint8_t)value, result);
 }
 
-uint8_t deserializer_read_bit(Deserializer* deserializer, Result* result);
 bool deserialize_bool(Deserializer* deserializer, Result* result) {
     result->status = Status_Success;
     return (bool)deserializer_read_bit(deserializer, result);

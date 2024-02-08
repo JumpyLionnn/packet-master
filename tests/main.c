@@ -205,11 +205,26 @@ void test_deserializer(Deserializer* deserializer) {
         ts_expect_uint16_eq(deserialize_uint16_max(deserializer, max_bits_u8(10), &result), 511);
         ts_expect_status(result, Status_Success);
     }
-    // {
-    //     Result result;
-    //     ts_expect_uint8_eq(deserialize_uint8(deserializer, &result), 0);
-    //     ts_expect_status(result, Status_ReadFailed);
-    // }
+    {
+        Result result;
+        ts_expect_uint32_eq(deserialize_uint32(deserializer, &result), 0b00001111000000000000000000000000);
+        ts_expect_status(result, Status_Success);
+    }
+    {
+        Result result;
+        ts_expect_uint32_eq(deserialize_uint32_max(deserializer, max_bits_u8(24), &result), 0b100000001111111100000000);
+        ts_expect_status(result, Status_Success);
+    }
+    {
+        Result result;
+        ts_expect_uint32_eq(deserialize_uint32_max(deserializer, max_bits_u8(24), &result), 0b000000001111111111111111);
+        ts_expect_status(result, Status_Success);
+    }
+    {
+        Result result;
+        ts_expect_uint8_eq(deserialize_uint8(deserializer, &result), 0);
+        ts_expect_status(result, Status_ReadFailed);
+    }
 }
 
 int main() {
