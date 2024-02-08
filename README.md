@@ -5,4 +5,5 @@ This is has been a learning experience. It can serialize uint8_t and bool to the
 
 for bool 1 bit
 for uint8_t 8 bits unless specified otherwise
-planned to serialize and deserialize uint16_t and uint32_t
+for uint16_t 9 or 17 bits unless specified otherwise 1 bit for the byte count stored
+planned to serialize and deserialize uint32_t

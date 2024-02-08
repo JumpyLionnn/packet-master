@@ -8,7 +8,7 @@ typedef struct TSTestsState {
     bool is_running_test;
     const char* current_test_name;
 
-    struct timespec start_time;
+    uint64_t start_time;
 } TSTestsState;
 
 extern TSTestsState g_ts_tests_state;

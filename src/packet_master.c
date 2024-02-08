@@ -81,8 +81,6 @@ int count_leading_zeros_uint(unsigned int num) {
             return __builtin_clz(num);
         }
     #elif defined(_MSC_VER) 
-        // supported by msvc (not tested)
-        // handling zero as it is an undefined behaviour for clz
         if (num == 0) {
             return sizeof(num) * 8;
         }
@@ -94,7 +92,7 @@ int count_leading_zeros_uint(unsigned int num) {
     #endif
 }
 
-size_t min(size_t a, size_t b) {
+size_t min_size(size_t a, size_t b) {
     if (a > b) {
         return b;
     }
@@ -112,7 +110,7 @@ uint16_t min_uint16(uint16_t a, uint16_t b) {
     }
 }
 
-size_t max(size_t a, size_t b) {
+size_t max_size(size_t a, size_t b) {
     if (a > b) {
         return a;
     }
@@ -145,9 +143,22 @@ uint16_t swap_byte_order_uint16_fallback(uint16_t value) {
 }
 
 uint16_t swap_byte_order_uint16(uint16_t value){
-    // TODO: Add special case for msvc
     #if defined(__GNUC__) || defined(__GNUG__) || defined(__clang__)
         return __builtin_bswap16(value);
+    #elif defined(_MSC_VER)
+        // all of those conditions are evaluated during compile time
+        if (sizeof(uint16_t) == sizeof(unsigned short)) {
+            return (uint16_t)_byteswap_ushort(value);
+        }
+        else if (sizeof(uint16_t) == sizeof(unsigned long)) {
+            return (uint16_t)_byteswap_ulong(value);
+        }
+        else if (sizeof(uint16_t) == sizeof(unsigned __int64)) {
+            return (uint16_t)_byteswap_uint64(value);
+        }
+        else {
+            return swap_byte_order_uint16_fallback(value);
+        }
     #else
         return swap_byte_order_uint16_fallback(value);
     #endif
@@ -158,11 +169,23 @@ uint32_t swap_byte_order_uint32_fallback(uint32_t value) {
 }
 
 uint32_t swap_byte_order_uint32(uint32_t value){
-    // TODO: Add special case for msvc
     #if defined(__GNUC__) || defined(__GNUG__) || defined(__clang__)
         return __builtin_bswap32(value);
+    #elif defined(_MSC_VER) 
+        if (sizeof(uint32_t) == sizeof(unsigned short)) {
+            return (uint32_t)_byteswap_ushort((uint32_t)value);
+        }
+        else if (sizeof(uint32_t) == sizeof(unsigned long)) {
+            return (uint32_t)_byteswap_ulong(value);
+        }
+        else if (sizeof(uint32_t) == sizeof(unsigned __int64)) {
+            return (uint32_t)_byteswap_uint64(value);
+        }
+        else {
+            return swap_byte_order_uint32_fallback(value);
+        }
     #else
-        return swap_byte_order_uint16_fallback(value);
+        return swap_byte_order_uint32_fallback(value);
     #endif
 }
 
@@ -222,7 +245,7 @@ int buffer_push_bytes(Buffer* buffer, uint8_t* data, size_t size, Allocator* all
     assert(buffer->size <= buffer->capacity);
     if (size > buffer->capacity - buffer->size) {
         // expand
-        buffer->capacity = max(buffer->capacity * 1.5, buffer->size + size);
+        buffer->capacity = max_size((size_t)((double)buffer->capacity * 1.5), buffer->size + size);
         buffer->data = allocator->realloc(buffer->data, buffer->capacity);
         assert(buffer->data != NULL);
         memset(buffer->data + buffer->size + size, 0, buffer->capacity - buffer->size - size);
@@ -258,9 +281,9 @@ SerializerFreeBitsVector ser_create_free_bits_vector(size_t capacity, Allocator*
 
 SerializerFreeBits* ser_free_bits_push(SerializerFreeBitsVector* vector, SerializerFreeBits value, Allocator* allocator) {
     if (vector->capacity <= vector->count) {
-        vector->capacity = max(vector->capacity * 1.5, vector->count + 1);
+        vector->capacity = max_size((size_t)((double)vector->capacity * 1.5), vector->count + 1);
         if (vector->data == NULL) {
-            vector->data = allocator->alloc(vector->capacity);
+            vector->data = allocator->alloc(vector->capacity * sizeof(SerializerFreeBits));
             if (vector->data == NULL) {
                 return NULL;
             }
@@ -314,9 +337,9 @@ DeserializerFreeBitsVector deser_create_free_bits_vector(size_t capacity, Alloca
 
 DeserializerFreeBits* deser_free_bits_push(DeserializerFreeBitsVector* vector, DeserializerFreeBits value, Allocator* allocator) {
     if (vector->capacity <= vector->count) {
-        vector->capacity = max(vector->capacity * 1.5, vector->count + 1);
+        vector->capacity = max_size((size_t)((double)vector->capacity * 1.5), vector->count + 1);
         if (vector->data == NULL) {
-            vector->data = allocator->alloc(vector->capacity);
+            vector->data = allocator->alloc(vector->capacity * sizeof(DeserializerFreeBits));
             if (vector->data == NULL) {
                 return NULL;
             }
@@ -514,7 +537,7 @@ void serialize_uint16_max(Serializer* serializer, uint16_t value, uint8_t max_bi
             return;
         }
         if (used_bytes * 8 > max_bits) {
-            uint32_t free_bits_start = used_bits % 8;
+            uint32_t free_bits_start = max_bits % 8;
             SerializerFreeBits free_bits = {
                 .start = free_bits_start,
                 .end = 8,
@@ -537,7 +560,7 @@ uint16_t deserialize_uint16_max(Deserializer* deserializer, uint8_t max_bits, Re
     else {
         uint32_t byte_count_size = count_used_bits_uint32(sizeof(uint16_t) - 1); 
         assert(byte_count_size == 1);
-        uint32_t byte_count = deserializer_read_bits(deserializer, byte_count_size, result) + 1;
+        uint32_t byte_count = (uint32_t)deserializer_read_bits(deserializer, byte_count_size, result) + 1;
         if (result->status != Status_Success) {
             return 0;
         }
@@ -547,10 +570,10 @@ uint16_t deserialize_uint16_max(Deserializer* deserializer, uint8_t max_bits, Re
             return 0;
         }
 
-        uint16_t little_endian = (*(uint16_t*)bytes) & BIT_MASK(0, min_uint16(byte_count * 8, max_bits), uint16_t);
+        uint16_t little_endian = (*(uint16_t*)bytes) & BIT_MASK((uint16_t)0, min_uint16(byte_count * 8, max_bits), uint16_t);
         uint16_t value = little_endian_to_native_endianness_uint16(little_endian);
         if (byte_count * 8 > max_bits) {
-            uint16_t start = max_bits % 8;
+            uint8_t start = max_bits % 8;
             DeserializerFreeBits free_bits = {
                 .start = start,
                 .end = 8,
@@ -621,8 +644,8 @@ void serializer_push_bits(Serializer* serializer, uint64_t value, size_t count, 
             return;
         }
 
-        size_t write_count = min(free_bits->end - free_bits->start, count);
-        uint8_t data = (uint8_t)(value & (uint64_t)BIT_MASK(0, write_count, size_t));
+        size_t write_count = min_size(free_bits->end - free_bits->start, count);
+        uint8_t data = (uint8_t)(value & BIT_MASK(0, (uint64_t)write_count, uint64_t));
         serializer->buffer.data[free_bits->index - serializer->start_index] |= data << free_bits->start;
         free_bits->start += write_count;
         value >>= write_count;
@@ -646,12 +669,12 @@ uint64_t deserializer_read_bits(Deserializer* deserializer, size_t count, Result
             assert(result->status != Status_Success);
             return 0;
         }
-        size_t read_count = min(free_bits->end - free_bits->start, count);
+        size_t read_count = min_size(free_bits->end - free_bits->start, count);
         uint64_t data = (free_bits->byte & BIT_MASK(free_bits->start, read_count, uint64_t)) >> free_bits->start;
         value |= data << index;
         index += read_count;
         count -= read_count;
-        free_bits->start += read_count;
+        free_bits->start += (uint8_t)read_count;
         if (free_bits->start >= free_bits->end) {
             if (deser_free_bits_remove(&deserializer->free_bits, 0) != 0) {
                 result->status = Status_MemoryAllocationFailed;
