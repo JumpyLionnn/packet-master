@@ -126,6 +126,14 @@ size_t max_size(size_t a, size_t b) {
         return b;
     }
 }
+uint32_t max_uint32(uint32_t a, uint32_t b) {
+    if (a > b) {
+        return a;
+    }
+    else {
+        return b;
+    }
+}
 
 uint32_t ceil_divide_uint32(uint32_t a, uint32_t b) {
     return (a + b - 1) / b;
@@ -279,7 +287,7 @@ int buffer_remove(Buffer* buffer, size_t start, size_t count) {
     size_t end = start + count;
     void* move_res = memmove(buffer->data + start, buffer->data + end, buffer->size - end);
     buffer->size -= count;
-    return (int)(size_t)move_res;
+    return move_res == NULL;
 }
 
 
@@ -319,8 +327,9 @@ SerializerFreeBits* ser_free_bits_push(SerializerFreeBitsVector* vector, Seriali
 int ser_free_bits_remove(SerializerFreeBitsVector* vector, size_t index) {
     assert(index < vector->count);
     if (index < vector->count - 1) {
-        void* move_res = memmove(vector->data + index, vector->data + index + 1, vector->count - index - 1);
-        return (int)(size_t)move_res;
+        void* move_res = memmove(vector->data + index, vector->data + index + 1, (vector->count - index - 1) * sizeof(vector->data[0]));
+        vector->count--;
+        return move_res == NULL;
     }
     vector->count--;
     return 0;
@@ -375,8 +384,10 @@ DeserializerFreeBits* deser_free_bits_push(DeserializerFreeBitsVector* vector, D
 int deser_free_bits_remove(DeserializerFreeBitsVector* vector, size_t index) {
     assert(index < vector->count);
     if (index < vector->count - 1) {
-        void* move_res = memmove(vector->data + index, vector->data + index + 1, vector->count - index - 1);
-        return (int)(size_t)move_res;
+        size_t right = vector->count - index - 1;
+        void* move_res = memmove(vector->data + index, vector->data + index + 1, right * sizeof(vector->data[0]));
+        vector->count--;
+        return move_res == NULL ? 1 : 0;
     }
     vector->count--;
     return 0;
@@ -540,7 +551,7 @@ void serialize_uint16_max(Serializer* serializer, uint16_t value, uint8_t max_bi
     else {
         uint32_t used_bits = count_used_bits_uint32(value);
         assert(used_bits <= max_bits);
-        uint32_t used_bytes = ceil_divide_uint32(used_bits, BYTE_SIZE);
+        uint32_t used_bytes = max_uint32(ceil_divide_uint32(used_bits, BYTE_SIZE), 1);
         uint32_t byte_count_size = count_used_bits_uint32(sizeof(uint16_t) - 1); 
         assert(byte_count_size == 1); // should be 1 for uint16_t
         uint16_t little_endian = native_endianness_to_little_endian_uint16(value);
@@ -557,7 +568,7 @@ void serialize_uint16_max(Serializer* serializer, uint16_t value, uint8_t max_bi
             SerializerFreeBits free_bits = {
                 .start = free_bits_start,
                 .end = BYTE_SIZE,
-                .index = serializer->buffer.size - 1
+                .index = serializer->buffer.size - 1 + serializer->start_index
             };
             if (ser_free_bits_push(&serializer->free_bits, free_bits, &serializer->allocator) == NULL) {
                 result->status = Status_MemoryAllocationFailed;
@@ -620,7 +631,7 @@ void serialize_uint32_max(Serializer* serializer, uint32_t value, uint8_t max_bi
     else {
         uint32_t used_bits = count_used_bits_uint32(value);
         assert(used_bits <= max_bits);
-        uint32_t used_bytes = ceil_divide_uint32(used_bits, BYTE_SIZE);
+        uint32_t used_bytes = max_uint32(ceil_divide_uint32(used_bits, BYTE_SIZE), 1);
         uint8_t max_bytes = ceil_divide_uint32(max_bits, BYTE_SIZE);
         uint32_t byte_count_size = count_used_bits_uint32(max_bytes - 1); 
         // example:
@@ -667,7 +678,7 @@ void serialize_uint32_max(Serializer* serializer, uint32_t value, uint8_t max_bi
             SerializerFreeBits free_bits = {
                 .start = free_bits_start,
                 .end = BYTE_SIZE,
-                .index = serializer->buffer.size - 1
+                .index = serializer->buffer.size - 1 + serializer->start_index
             };
             if (ser_free_bits_push(&serializer->free_bits, free_bits, &serializer->allocator) == NULL) {
                 result->status = Status_MemoryAllocationFailed;

@@ -1,7 +1,7 @@
 # packet-master
  a serialization and deserialization library made in c
 
-This is has been a learning experience. It can serialize uint8_t uint16_t, and bool to their smallest representable way.
+This has been a learning experience. It can serialize uint8_t uint16_t, uint32_t, and bool to their smallest representable way.
 
 ## How is serialization done?
 * boolean value is 1 bit
