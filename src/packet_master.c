@@ -29,7 +29,7 @@ void assert_impl(bool value, const char* expression, size_t line, const char* fi
 #define assert(condition)
 #endif
 
-#define unimplemented() fprintf("%s:%u: Attempt to run code marked as unimplemented.\n", __FILE__, __LINE__)
+#define unimplemented() fprintf(stderr, "%s:%u: Attempt to run code marked as unimplemented.\n", __FILE__, __LINE__)
 
 const char* status_to_string(ResultStatus status) {
     switch (status)
@@ -145,13 +145,29 @@ enum Endianness {
 };
 
 enum Endianness detect_endianness() {
-    int n = 1;
-    if(*(char *)&n == 1) {
-        return LittleEndian;
-    }
-    else {
+    #if defined(__BYTE_ORDER) && __BYTE_ORDER == __BIG_ENDIAN || \
+        defined(__BIG_ENDIAN__) || \
+        defined(__ARMEB__) || \
+        defined(__THUMBEB__) || \
+        defined(__AARCH64EB__) || \
+        defined(_MIBSEB) || defined(__MIBSEB) || defined(__MIBSEB__)
         return BigEndian;
-    }
+    #elif defined(__BYTE_ORDER) && __BYTE_ORDER == __LITTLE_ENDIAN || \
+        defined(__LITTLE_ENDIAN__) || \
+        defined(__ARMEL__) || \
+        defined(__THUMBEL__) || \
+        defined(__AARCH64EL__) || \
+        defined(_MIPSEL) || defined(__MIPSEL) || defined(__MIPSEL__)
+        return LittleEndian;
+    #else
+        int n = 1;
+        if(*(char*)&n == 1) {
+            return LittleEndian;
+        }
+        else {
+            return BigEndian;
+        }
+    #endif
 }
 
 uint16_t swap_byte_order_uint16_fallback(uint16_t value) {
