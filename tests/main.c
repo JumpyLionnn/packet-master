@@ -5,10 +5,28 @@
 #include "test/test.h"
 
 
+void* my_malloc(size_t size, void* ctx) {
+    (void)ctx;
+    return malloc(size);
+}
+
+void* my_realloc(void* ptr, size_t old_size, size_t new_size, void* ctx) {
+    (void)old_size;
+    (void)ctx;
+    return realloc(ptr, new_size);
+}
+
+void my_free(void* ptr, size_t size, void* ctx) {
+    (void)size;
+    (void)ctx;
+    free(ptr);
+}
+
 static Allocator allocator = {
-     .alloc = malloc,
-    .realloc = realloc,
-    .free = free
+    .alloc = my_malloc,
+    .realloc = my_realloc,
+    .free = my_free,
+    .ctx = NULL
 };
 
 typedef struct {

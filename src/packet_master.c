@@ -160,6 +160,7 @@ enum Endianness detect_endianness() {
         defined(_MIPSEL) || defined(__MIPSEL) || defined(__MIPSEL__)
         return LittleEndian;
     #else
+        // fallback, it might have a small runtime cost
         int n = 1;
         if(*(char*)&n == 1) {
             return LittleEndian;
@@ -271,22 +272,23 @@ uint8_t max_u8(uint8_t number) {
 
 Buffer create_buffer(size_t capacity, Allocator* allocator) {
     return (Buffer) {
-        .data = allocator->alloc(capacity),
+        .data = allocator->alloc(capacity, allocator->ctx),
         .capacity = capacity,
         .size = 0
     };
 }
 
 void free_buffer(Buffer* buffer, Allocator* allocator) {
-    allocator->free(buffer->data);
+    allocator->free(buffer->data, buffer->capacity, allocator->ctx);
 }
 
 int buffer_push_bytes(Buffer* buffer, uint8_t* data, size_t size, Allocator* allocator) {
     assert(buffer->size <= buffer->capacity);
     if (size > buffer->capacity - buffer->size) {
         // expand
+        size_t old_size = buffer->capacity;
         buffer->capacity = max_size((size_t)((double)buffer->capacity * 1.5), buffer->size + size);
-        buffer->data = allocator->realloc(buffer->data, buffer->capacity);
+        buffer->data = allocator->realloc(buffer->data, old_size, buffer->capacity, allocator->ctx);
         assert(buffer->data != NULL);
         memset(buffer->data + buffer->size + size, 0, buffer->capacity - buffer->size - size);
     }
@@ -315,21 +317,22 @@ SerializerFreeBitsVector ser_create_free_bits_vector(size_t capacity, Allocator*
     return (SerializerFreeBitsVector) {
         .capacity = capacity,
         .count = 0,
-        .data = capacity == 0 ? NULL : allocator->alloc(capacity * sizeof(SerializerFreeBits))
+        .data = capacity == 0 ? NULL : allocator->alloc(capacity * sizeof(SerializerFreeBits), allocator->ctx)
     };
 }
 
 SerializerFreeBits* ser_free_bits_push(SerializerFreeBitsVector* vector, SerializerFreeBits value, Allocator* allocator) {
     if (vector->capacity <= vector->count) {
+        size_t old_size = vector->capacity * sizeof(vector->data[0]);
         vector->capacity = max_size((size_t)((double)vector->capacity * 1.5), vector->count + 1);
         if (vector->data == NULL) {
-            vector->data = allocator->alloc(vector->capacity * sizeof(SerializerFreeBits));
+            vector->data = allocator->alloc(vector->capacity * sizeof(SerializerFreeBits), allocator->ctx);
             if (vector->data == NULL) {
                 return NULL;
             }
         }
         else {
-            SerializerFreeBits* data = allocator->realloc(vector->data, vector->capacity * sizeof(SerializerFreeBits));
+            SerializerFreeBits* data = allocator->realloc(vector->data, old_size, vector->capacity * sizeof(SerializerFreeBits), allocator->ctx);
             if (data == NULL) {
                 return NULL;
             }
@@ -364,7 +367,7 @@ void ser_free_bits_clear(SerializerFreeBitsVector* vector) {
 }
 
 void ser_free_bits_free(SerializerFreeBitsVector* vector, Allocator* allocator) {
-    allocator->free(vector->data);
+    allocator->free(vector->data, sizeof(vector->data[0]) * vector->capacity, allocator->ctx);
 }
 
 
@@ -372,21 +375,22 @@ DeserializerFreeBitsVector deser_create_free_bits_vector(size_t capacity, Alloca
     return (DeserializerFreeBitsVector) {
         .capacity = capacity,
         .count = 0,
-        .data = capacity == 0 ? NULL : allocator->alloc(capacity * sizeof(DeserializerFreeBits))
+        .data = capacity == 0 ? NULL : allocator->alloc(capacity * sizeof(DeserializerFreeBits), allocator->ctx)
     };
 }
 
 DeserializerFreeBits* deser_free_bits_push(DeserializerFreeBitsVector* vector, DeserializerFreeBits value, Allocator* allocator) {
     if (vector->capacity <= vector->count) {
+        size_t old_size = vector->capacity * sizeof(vector->data[0]);
         vector->capacity = max_size((size_t)((double)vector->capacity * 1.5), vector->count + 1);
         if (vector->data == NULL) {
-            vector->data = allocator->alloc(vector->capacity * sizeof(DeserializerFreeBits));
+            vector->data = allocator->alloc(vector->capacity * sizeof(DeserializerFreeBits), allocator->ctx);
             if (vector->data == NULL) {
                 return NULL;
             }
         }
         else {
-            DeserializerFreeBits* data = allocator->realloc(vector->data, vector->capacity * sizeof(DeserializerFreeBits));
+            DeserializerFreeBits* data = allocator->realloc(vector->data, old_size, vector->capacity * sizeof(DeserializerFreeBits), allocator->ctx);
             if (data == NULL) {
                 return NULL;
             }
@@ -418,7 +422,7 @@ DeserializerFreeBits* deser_free_bits_first(DeserializerFreeBitsVector* vector) 
 }
 
 void deser_free_bits_free(DeserializerFreeBitsVector* vector, Allocator* allocator) {
-    allocator->free(vector->data);
+    allocator->free(vector->data, vector->capacity * sizeof(vector->data[0]), allocator->ctx);
 }
 
 

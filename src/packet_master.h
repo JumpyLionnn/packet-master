@@ -23,10 +23,17 @@ typedef struct {
 // A generic way to allocate memory without requiring libc
 typedef struct {
     // allocate memory, returning NULL on failure
-    void*(*alloc)(size_t);
+    // alloc(size, ctx)
+    void* (*alloc)(size_t, void*);
+
     // return null on failure, doesn't call free on failure
-    void*(*realloc)(void*, size_t);
-    void(*free)(void*);
+    // realloc(ptr, old_size, new_size, ctx)
+    void* (*realloc)(void*, size_t, size_t, void*);
+
+    // size will should always be the size passed into alloc
+    // free(ptr, size, ctx)
+    void (*free)(void*, size_t, void*);
+    void* ctx;
 } Allocator;
 
 typedef struct {
