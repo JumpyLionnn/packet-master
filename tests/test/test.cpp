@@ -39,13 +39,7 @@ bool _ts_expect_ ## type_name ## _eq_impl(type left, type right, const char* lef
 
 
 
-TSTestsState g_ts_tests_state = {
-    .total = 0,
-    .failed = 0,
-    .is_running_test = false,
-    .is_success = false,
-    .current_test_name = NULL
-};
+TSTestsState g_ts_tests_state = {};
 
 void fail_test() {
     if (g_ts_tests_state.is_success) {

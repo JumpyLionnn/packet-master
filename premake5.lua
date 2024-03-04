@@ -4,15 +4,15 @@ workspace "packet_master"
 startproject "Tests"
 project "Tests"
     kind "ConsoleApp"
-    language "C"
+    language "C++"
     targetdir ("bin/%{cfg.buildcfg}/%{prj.name}")
 	objdir ("bin/obj/%{cfg.buildcfg}/%{prj.name}")
 
     files {
         "tests/**.h",
-        "tests/**.c",
+        "tests/**.cpp",
         "src/**.h",
-        "src/**.c"
+        "src/**.cpp"
     }
 
     includedirs {

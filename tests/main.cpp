@@ -23,10 +23,10 @@ void my_free(void* ptr, size_t size, void* ctx) {
 }
 
 static Allocator allocator = {
-    .alloc = my_malloc,
-    .realloc = my_realloc,
-    .free = my_free,
-    .ctx = NULL
+    my_malloc,
+    my_realloc,
+    my_free,
+    NULL
 };
 
 typedef struct {
@@ -35,10 +35,9 @@ typedef struct {
 } BufferReader;
 
 BufferReader read_buffer(Buffer* buffer) {
-    return (BufferReader) {
-        .buffer = buffer,
-        .index = 0
-    };
+    BufferReader reader{};
+    reader.buffer = buffer;
+    return reader;
 }
 
 int write_data(void* data, uint8_t* incoming_data, size_t size) {
@@ -46,7 +45,7 @@ int write_data(void* data, uint8_t* incoming_data, size_t size) {
 }
 
 uint8_t* read_data(void* data, size_t data_size) {
-    BufferReader* reader = data;
+    BufferReader* reader = (BufferReader*)data;
     if (data_size > reader->buffer->size - reader->index) {
         return NULL;
     }
@@ -284,10 +283,9 @@ int main() {
 
     Buffer buffer = create_buffer(10, &allocator);
     {
-        Writer writer = {
-            .write = write_data,
-            .data = &buffer
-        };
+        Writer writer{};
+        writer.write = write_data;
+        writer.data = &buffer;
         Serializer serializer = create_serializer(&writer, allocator);
         TS_RUN_TEST(test_serializer, &serializer);
         free_serializer(&serializer);
@@ -297,10 +295,9 @@ int main() {
 
     {
         BufferReader buf_reader = read_buffer(&buffer);
-        Reader reader = {
-            .read = read_data,
-            .data = &buf_reader  
-        };
+        Reader reader{};
+        reader.read = read_data;
+        reader.data = &buf_reader;
         Deserializer deserializer = create_deserializer(&reader, allocator);
         TS_RUN_TEST(test_deserializer, &deserializer);
         free_deserializer(&deserializer);
