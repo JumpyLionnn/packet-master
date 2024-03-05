@@ -45,12 +45,6 @@ struct Allocator{
     void free(void* ptr, size_t size);
 };
 
-struct Buffer{
-    uint8_t* data;
-    size_t capacity;
-    size_t size;
-};
-
 // Internal
 // a reference to a byte in the buffer which contains some free bits
 struct SerializerFreeBits{
@@ -67,34 +61,6 @@ struct DeserializerFreeBits {
     uint8_t end;
 };
 
-
-// Internal
-struct SerializerFreeBitsVector {
-    SerializerFreeBits* data;
-    size_t count;
-    size_t capacity;
-};
-
-// Internal
-struct DeserializerFreeBitsVector{
-    DeserializerFreeBits* data;
-    size_t count;
-    size_t capacity;
-};
-
-// struct Serializer{
-//     Writer* writer;
-//     Allocator allocator;
-//     Buffer buffer;
-//     SerializerFreeBitsVector free_bits;
-//     size_t start_index;
-// };
-
-// struct Deserializer {
-//     Reader* reader;
-//     Allocator allocator;
-//     DeserializerFreeBitsVector free_bits;
-// };
 
 enum class ResultStatus {
     Success = 0,
@@ -116,24 +82,125 @@ struct Result {
     } error_info;
 };
 
+#define ENABLE_ASSERT
+#ifdef ENABLE_ASSERT
+void assert_impl(bool value, const char* expression, size_t line, const char* file);
+#define assert(condition) assert_impl((condition), #condition, __LINE__, __FILE__)
+#else
+#define assert(condition)
+#endif
+
+size_t max(size_t a, size_t b);
+
+#include <string.h>
+
+template<typename T>
+class Vector {
+    public:
+        Vector(Allocator* allocator) : m_data(nullptr), m_length(0), m_capacity(0), m_allocator(allocator) {}
+        ~Vector() {
+            m_allocator->free(m_data, m_capacity * sizeof(T));
+        }
+        Vector(const Vector&) = delete;
+
+        // returns nullptr on failure
+        T* push(T value) {
+            if (m_capacity <= m_length) {
+                size_t old_capacity = m_capacity;
+                m_capacity = max(m_capacity * 2, m_length + 1);
+                if (m_data == nullptr) {
+                    m_data = (T*)m_allocator->alloc(m_capacity * sizeof(T));
+                    if (m_data == nullptr) {
+                        return nullptr;
+                    }
+                }
+                else {
+                    T* data = (T*)m_allocator->realloc(m_data, old_capacity * sizeof(T), m_capacity * sizeof(T));
+                    if (data == nullptr) {
+                        return nullptr;
+                    }
+                    m_data = data;
+                }
+            }
+            m_data[m_length] = value;
+            return m_data + (m_length++);
+        }
+
+        T* push_many(T* data, size_t count) {
+            if (count > m_capacity - m_length) {
+                // expand
+                size_t old_capacity = m_capacity;
+                m_capacity = max(m_capacity * 2, m_length + count);
+                m_data = (T*)m_allocator->realloc(m_data, old_capacity * sizeof(T), m_capacity * sizeof(T));
+                if (m_data == nullptr) {
+                    return nullptr;
+                }
+                #ifdef NDEBUG
+                    memset(m_data + m_length + count, 0, (m_capacity - m_length - count) * sizeof(T));
+                #endif
+            }
+            memcpy(m_data + m_length, data, count * sizeof(T));
+            T* res = m_data + m_length;
+            m_length += count;
+            return res;
+        }
+
+        bool remove(size_t index) {
+            assert(index < m_length);
+            if (index < m_length - 1) {
+                size_t right = m_length - index - 1;
+                void* move_res = memmove(m_data + index, m_data + index + 1, right * sizeof(T));
+                m_length--;
+                return move_res != nullptr;
+            }
+            m_length--;
+            return true;
+        }
+
+        bool remove_many(size_t index, size_t count) {
+            assert(index + count < m_length);
+            if (index + count < m_length - 1) {
+                size_t right = m_length - index - count;
+                void* move_res = memmove(m_data + index, m_data + index + count, right * sizeof(T));
+                m_length -= count;
+                return move_res != nullptr;
+            }
+            m_length -= count;
+            return true;
+        }
+
+        void clear() {
+            m_length = 0;
+        }
+
+        T* first() {
+            if (m_length > 0 && m_data != nullptr) {
+                return m_data;
+            }
+            return nullptr;
+        }
+
+        T& operator[](size_t index) {
+            assert(index < m_length);
+            return m_data[index];
+        }
+
+        inline T* ptr() const { return m_data; }
+        inline size_t length() const { return m_length; }
+        inline size_t capacity() const { return m_capacity; }
+    private:
+        T* m_data;
+        size_t m_length;
+        size_t m_capacity;
+        Allocator* m_allocator;
+};
+
 
 int count_leading_zeros_uint_fallback(unsigned int num);
 int count_leading_zeros_uint(unsigned int num);
 
 uint8_t max_bits_u8(uint8_t bits);
 uint8_t max_u8(uint8_t number);
-
-Buffer create_buffer(size_t capacity, Allocator* allocator);
-void free_buffer(Buffer* buffer, Allocator* allocator);
-int buffer_push_bytes(Buffer* buffer, uint8_t* data, size_t size, Allocator* allocator);
-
-SerializerFreeBitsVector create_free_bits_ref_vector(size_t capacity, Allocator* allocator);
-SerializerFreeBits* vector_push(SerializerFreeBitsVector* vector, SerializerFreeBits value, Allocator* allocator);
-SerializerFreeBits* vector_first(SerializerFreeBitsVector* vector);
-int vector_remove(SerializerFreeBitsVector* vector, size_t index);
-void vector_clear(SerializerFreeBitsVector* vector);
-void free_vector(SerializerFreeBitsVector* vector, Allocator* allocator);
-
 
 class Serializer {
     public:
@@ -174,10 +241,10 @@ class Serializer {
         SerializerFreeBits* get_free_bits(Result* result);
     private:
         Writer* m_writer;
-        Allocator* m_allocator;
+        // Allocator* m_allocator;
         size_t m_start_index;
-        Buffer m_buffer;
-        SerializerFreeBitsVector m_free_bits;
+        Vector<uint8_t> m_buffer;
+        Vector<SerializerFreeBits> m_free_bits;
 };
 
 class Deserializer {
@@ -211,31 +278,5 @@ class Deserializer {
     private:
         Reader* m_reader;
         Allocator* m_allocator;
-        DeserializerFreeBitsVector m_free_bits;
+        Vector<DeserializerFreeBits> m_free_bits;
 };
-
-// Deserializer create_deserializer(Reader* reader, Allocator allocator);
-
-// void free_deserializer(Deserializer* deserializer);
-
-// // Deserialize uint8_t, returns 0 on failure with an error in the result
-// uint8_t deserialize_uint8(Deserializer* deserializer, Result* result);
-
-// // deserialize uint8_t with max amount of bits specified. returns 0 on failure with an error in the result
-// // NOTE: passing a value with more bits than the max bits is an undefined behaviour, this is not a validator
-// uint8_t deserialize_uint8_max(Deserializer* deserializer, uint8_t max_bits, Result* result);
-
-// // deserialize uint16_t
-// uint16_t deserialize_uint16(Deserializer* deserializer, Result* result);
-
-// // deserialize uint16_t with max amount of bits specified in order to reduce the required storage space
-// uint16_t deserialize_uint16_max(Deserializer* serializer, uint8_t max_bits, Result* result);
-
-// // deserialize uint32_t
-// uint32_t deserialize_uint32(Deserializer* deserializer, Result* result);
-
-// // deserialize uint32_t with max amount of bits specified in order to reduce the required storage space
-// uint32_t deserialize_uint32_max(Deserializer* deserializer, uint8_t max_bits, Result* result);
-
-// // Deserialize bool, returns false on failure with an error in the result
-// bool deserialize_bool(Deserializer* deserializer, Result* result);

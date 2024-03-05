@@ -30,26 +30,26 @@ static Allocator allocator = {
 };
 
 typedef struct {
-    Buffer* buffer;
+    Vector<uint8_t>* buffer;
     size_t index;
 } BufferReader;
 
-BufferReader read_buffer(Buffer* buffer) {
+BufferReader read_buffer(Vector<uint8_t>* buffer) {
     BufferReader reader{};
     reader.buffer = buffer;
     return reader;
 }
 
 int write_data(void* data, uint8_t* incoming_data, size_t size) {
-    return buffer_push_bytes((Buffer*)data, incoming_data, size, &allocator);
+    return ((Vector<uint8_t>*)data)->push_many(incoming_data, size) == nullptr ? 1 : 0;
 }
 
 uint8_t* read_data(void* data, size_t data_size) {
     BufferReader* reader = (BufferReader*)data;
-    if (data_size > reader->buffer->size - reader->index) {
+    if (data_size > reader->buffer->length() - reader->index) {
         return NULL;
     }
-    uint8_t* bytes = reader->buffer->data + reader->index;
+    uint8_t* bytes = reader->buffer->ptr() + reader->index;
     reader->index += data_size;
     return bytes;
 }
@@ -158,38 +158,38 @@ void test_serializer(Serializer* serializer) {
 }
 
 
-void validate_serialized_data(Buffer* buffer) {
-    ts_assert(buffer->capacity >= buffer->size);
-    ts_expect_uint8_eq(buffer->data[0], 2);
-    ts_expect_uint8_eq(buffer->data[1], 0);
-    ts_expect_uint8_eq(buffer->data[2], 0b10000011);
-    ts_expect_uint8_eq(buffer->data[3], 0b01010110);
-    ts_expect_uint8_eq(buffer->data[4], 0b11111111);
-    ts_expect_uint8_eq(buffer->data[5], 0b00000011);
-    ts_expect_uint8_eq(buffer->data[6], 0b01111111);
-    ts_expect_uint8_eq(buffer->data[7], 0b00110111);
-    ts_expect_uint8_eq(buffer->data[8], 0b11111111);
-    ts_expect_uint8_eq(buffer->data[9], 0b01);
+void validate_serialized_data(Vector<uint8_t>& buffer) {
+    ts_assert(buffer.capacity() >= buffer.length());
+    ts_expect_uint8_eq(buffer[0], 2);
+    ts_expect_uint8_eq(buffer[1], 0);
+    ts_expect_uint8_eq(buffer[2], 0b10000011);
+    ts_expect_uint8_eq(buffer[3], 0b01010110);
+    ts_expect_uint8_eq(buffer[4], 0b11111111);
+    ts_expect_uint8_eq(buffer[5], 0b00000011);
+    ts_expect_uint8_eq(buffer[6], 0b01111111);
+    ts_expect_uint8_eq(buffer[7], 0b00110111);
+    ts_expect_uint8_eq(buffer[8], 0b11111111);
+    ts_expect_uint8_eq(buffer[9], 0b01);
 
     // 00001111_0000000_00000000_000000000
-    ts_expect_uint8_eq(buffer->data[10], 0b00000000);
-    ts_expect_uint8_eq(buffer->data[11], 0b00000000);
-    ts_expect_uint8_eq(buffer->data[12], 0b00000000);
-    ts_expect_uint8_eq(buffer->data[13], 0b00001111);
+    ts_expect_uint8_eq(buffer[10], 0b00000000);
+    ts_expect_uint8_eq(buffer[11], 0b00000000);
+    ts_expect_uint8_eq(buffer[12], 0b00000000);
+    ts_expect_uint8_eq(buffer[13], 0b00001111);
 
     // 0b10000000_11111111_00000000
-    ts_expect_uint8_eq(buffer->data[14], 0b00000000);
-    ts_expect_uint8_eq(buffer->data[15], 0b11111111);
-    ts_expect_uint8_eq(buffer->data[16], 0b10000000);
+    ts_expect_uint8_eq(buffer[14], 0b00000000);
+    ts_expect_uint8_eq(buffer[15], 0b11111111);
+    ts_expect_uint8_eq(buffer[16], 0b10000000);
 
     // 0b000000001111111111111111
-    ts_expect_uint8_eq(buffer->data[17], 0b11111111);
-    ts_expect_uint8_eq(buffer->data[18], 0b11111111);
+    ts_expect_uint8_eq(buffer[17], 0b11111111);
+    ts_expect_uint8_eq(buffer[18], 0b11111111);
     
-    ts_expect_uint8_eq(buffer->data[19], 0);
-    ts_expect_uint8_eq(buffer->data[20], 0);
+    ts_expect_uint8_eq(buffer[19], 0);
+    ts_expect_uint8_eq(buffer[20], 0);
 
-    ts_expect_size_eq(buffer->size, 21);
+    ts_expect_size_eq(buffer.length(), 21);
 }
 
 
@@ -281,27 +281,25 @@ void test_deserializer(Deserializer* deserializer) {
 int main() {
     ts_start_testing();
 
-    Buffer buffer = create_buffer(10, &allocator);
-    {
-        Writer writer{};
-        writer.write_callback = write_data;
-        writer.ctx = &buffer;
-        Serializer serializer = Serializer(&writer, &allocator);
-        TS_RUN_TEST(test_serializer, &serializer);
-    }
+    Vector<uint8_t> buffer(&allocator);
+    
+    Writer writer{};
+    writer.write_callback = write_data;
+    writer.ctx = &buffer;
+    Serializer serializer(&writer, &allocator);
+    TS_RUN_TEST(test_serializer, &serializer);
+    
 
-    TS_RUN_TEST(validate_serialized_data, &buffer);
+    TS_RUN_TEST(validate_serialized_data, buffer);
 
-    {
-        BufferReader buf_reader = read_buffer(&buffer);
-        Reader reader{};
-        reader.read_callback = read_data;
-        reader.ctx = &buf_reader;
-        Deserializer deserializer = Deserializer(&reader, &allocator);
-        TS_RUN_TEST(test_deserializer, &deserializer);
-        // free_deserializer(&deserializer);
-    }
-    free_buffer(&buffer, &allocator);
+    
+    BufferReader buf_reader = read_buffer(&buffer);
+    Reader reader{};
+    reader.read_callback = read_data;
+    reader.ctx = &buf_reader;
+    Deserializer deserializer(&reader, &allocator);
+    TS_RUN_TEST(test_deserializer, &deserializer);
+    
 
     TS_RUN_TEST(test_count_bits);
 
