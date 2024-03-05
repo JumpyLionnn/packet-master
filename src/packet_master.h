@@ -82,13 +82,13 @@ struct DeserializerFreeBitsVector{
     size_t capacity;
 };
 
-struct Serializer{
-    Writer* writer;
-    Allocator allocator;
-    Buffer buffer;
-    SerializerFreeBitsVector free_bits;
-    size_t start_index;
-};
+// struct Serializer{
+//     Writer* writer;
+//     Allocator allocator;
+//     Buffer buffer;
+//     SerializerFreeBitsVector free_bits;
+//     size_t start_index;
+// };
 
 struct Deserializer {
     Reader* reader;
@@ -134,57 +134,76 @@ int vector_remove(SerializerFreeBitsVector* vector, size_t index);
 void vector_clear(SerializerFreeBitsVector* vector);
 void free_vector(SerializerFreeBitsVector* vector, Allocator* allocator);
 
-Serializer create_serializer(Writer* writer, Allocator allocator);
+
+class Serializer {
+    public:
+        Serializer(Writer* writer, Allocator* allocator);
+        ~Serializer();
+
+        // serialize uint8_t
+        void serialize_uint8(uint8_t value, Result* result);
+        // serialize uint8_t with max amount of bits specified in order to reduce the required storage space
+        // NOTE: passing a value with more bits than the max bits is an undefined behaviour, this is not a validator
+        void serialize_uint8_max(uint8_t value, uint8_t max_bits, Result* result);
+
+        // serialize uint16_t
+        void serialize_uint16(uint16_t value, Result* result);
+        // serialize uint16_t with max amount of bits specified in order to reduce the required storage space
+        // NOTE: passing a value with more bits than the max bits is an undefined behaviour, this is not a validator
+        void serialize_uint16_max(uint16_t value, uint8_t max_bits, Result* result);
+
+        // serialize uint32_t
+        void serialize_uint32(uint32_t value, Result* result);
+        // serialize uint32_t with max amount of bits specified in order to reduce the required storage space with some extra size optimizations
+        // NOTE: passing a value with more bits than the max bits is an undefined behaviour, this is not a validator
+        void serialize_uint32_max(uint32_t value, uint8_t max_bits, Result* result);
+
+        // serializes a boolean value
+        void serialize_bool(bool value, Result* result);
+
+        // flushes the buffers and resets the serializer
+        // after calling this method it is possible to reuse the same instance of the serializer
+        void finalize(Result* result);
+
+    private:
+        void push_bit(uint8_t value, Result* result);
+        void push_bits(uint64_t value, size_t count, Result* result);
+
+        void flush_buffer(Result* result);
+
+        SerializerFreeBits* get_free_bits(Result* result);
+    private:
+        Writer* m_writer;
+        Allocator* m_allocator;
+        size_t m_start_index;
+        Buffer m_buffer;
+        SerializerFreeBitsVector m_free_bits;
+};
+
 Deserializer create_deserializer(Reader* reader, Allocator allocator);
 
-void free_serializer(Serializer* serializer);
 void free_deserializer(Deserializer* deserializer);
-
-// serialize uint8_t
-void serialize_uint8(Serializer* serializer, uint8_t value, Result* result);
 
 // Deserialize uint8_t, returns 0 on failure with an error in the result
 uint8_t deserialize_uint8(Deserializer* deserializer, Result* result);
 
-// serialize uint8_t with max amount of bits specified in order to reduce the required storage space
-// NOTE: passing a value with more bits than the max bits is an undefined behaviour, this is not a validator
-void serialize_uint8_max(Serializer* serializer, uint8_t value, uint8_t max_bits, Result* result);
 
 // deserialize uint8_t with max amount of bits specified. returns 0 on failure with an error in the result
 // NOTE: passing a value with more bits than the max bits is an undefined behaviour, this is not a validator
 uint8_t deserialize_uint8_max(Deserializer* deserializer, uint8_t max_bits, Result* result);
 
 
-// serialize uint16_t
-void serialize_uint16(Serializer* serializer, uint16_t value, Result* result);
 // deserialize uint16_t
 uint16_t deserialize_uint16(Deserializer* deserializer, Result* result);
-
-// serialize uint16_t with max amount of bits specified in order to reduce the required storage space
-// NOTE: passing a value with more bits than the max bits is an undefined behaviour, this is not a validator
-void serialize_uint16_max(Serializer* serializer, uint16_t value, uint8_t max_bits, Result* result);
 
 // deserialize uint16_t with max amount of bits specified in order to reduce the required storage space
 uint16_t deserialize_uint16_max(Deserializer* serializer, uint8_t max_bits, Result* result);
 
-// serialize uint32_t
-void serialize_uint32(Serializer* serializer, uint32_t value, Result* result);
-
 // deserialize uint32_t
 uint32_t deserialize_uint32(Deserializer* deserializer, Result* result);
-
-// serialize uint32_t with max amount of bits specified in order to reduce the required storage space with some extra size optimizations
-// NOTE: passing a value with more bits than the max bits is an undefined behaviour, this is not a validator
-void serialize_uint32_max(Serializer* serializer, uint32_t value, uint8_t max_bits, Result* result);
 
 // deserialize uint32_t with max amount of bits specified in order to reduce the required storage space
 uint32_t deserialize_uint32_max(Deserializer* deserializer, uint8_t max_bits, Result* result);
 
-// serializes a boolean value
-void serialize_bool(Serializer* serializer, bool value, Result* result);
-
 // Deserialize bool, returns false on failure with an error in the result
 bool deserialize_bool(Deserializer* deserializer, Result* result);
-
-void flush_buffer(Serializer* serializer, Result* result);
-void serializer_finalize(Serializer* serializer, Result* result);

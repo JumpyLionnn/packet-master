@@ -76,83 +76,83 @@ void test_count_bits() {
 void test_serializer(Serializer* serializer) {
     {
         Result result;
-        serialize_uint8(serializer, 2, &result);
+        serializer->serialize_uint8(2, &result);
         ts_expect_success(result);
     }
     {
         Result result;
-        serialize_uint8(serializer, 0, &result);
+        serializer->serialize_uint8(0, &result);
         ts_expect_success(result);
     }
     {
         Result result;
-        serialize_uint8_max(serializer, 3, max_bits_u8(7), &result);
+        serializer->serialize_uint8_max(3, max_bits_u8(7), &result);
         ts_expect_success(result);
     }
     {
         Result result;
-        serialize_bool(serializer, true, &result);
+        serializer->serialize_bool(true, &result);
         ts_expect_success(result);
     }
     {
         Result result;
-        serialize_bool(serializer, false, &result);
+        serializer->serialize_bool(false, &result);
         ts_expect_success(result);
     }
     {
         Result result;
-        serialize_bool(serializer, true, &result);
+        serializer->serialize_bool(true, &result);
         ts_expect_success(result);
     }
     {
         Result result;
         // 5 = 0b101
-        serialize_uint8_max(serializer, 5, max_bits_u8(4), &result);
+        serializer->serialize_uint8_max(5, max_bits_u8(4), &result);
         ts_expect_success(result);
     }
     {
         Result result;
-        serialize_uint16(serializer, 1023, &result);
+        serializer->serialize_uint16(1023, &result);
         ts_expect_success(result);
     }
     {
         Result result;
-        serialize_uint16(serializer, 127, &result);
+        serializer->serialize_uint16(127, &result);
         ts_expect_success(result);
     }
     {
         Result result;
-        serialize_uint16_max(serializer, 511, max_bits_u8(10), &result);
+        serializer->serialize_uint16_max(511, max_bits_u8(10), &result);
         ts_expect_success(result);
     }
     {
         Result result;
-        serialize_uint32(serializer, 0b00001111000000000000000000000000, &result);
+        serializer->serialize_uint32(0b00001111000000000000000000000000, &result);
         ts_expect_success(result);
     }
     {
         Result result;
-        serialize_uint32_max(serializer, 0b100000001111111100000000, max_bits_u8(24), &result);
+        serializer->serialize_uint32_max(0b100000001111111100000000, max_bits_u8(24), &result);
         ts_expect_success(result);
     }
     {
         Result result;
-        serialize_uint32_max(serializer, 0b000000001111111111111111, max_bits_u8(24), &result);
+        serializer->serialize_uint32_max(0b000000001111111111111111, max_bits_u8(24), &result);
         ts_expect_success(result);
     }
     {
         Result result;
-        serialize_uint16(serializer, 0, &result);
+        serializer->serialize_uint16(0, &result);
         ts_expect_success(result);
     }
     {
         Result result;
-        serialize_uint32(serializer, 0, &result);
+        serializer->serialize_uint32(0, &result);
         ts_expect_success(result);
     }
     {
         Result result;
-        serializer_finalize(serializer, &result);
+        serializer->finalize(&result);
         ts_expect_success(result);
     }
 }
@@ -286,9 +286,8 @@ int main() {
         Writer writer{};
         writer.write_callback = write_data;
         writer.ctx = &buffer;
-        Serializer serializer = create_serializer(&writer, allocator);
+        Serializer serializer = Serializer(&writer, &allocator);
         TS_RUN_TEST(test_serializer, &serializer);
-        free_serializer(&serializer);
     }
 
     TS_RUN_TEST(validate_serialized_data, &buffer);
