@@ -1,5 +1,5 @@
 # packet-master
- a serialization and deserialization library made in c
+ a serialization and deserialization library made in c++
 
 This has been a learning experience. It can serialize uint8_t uint16_t, uint32_t, and bool to their smallest representable way.
 
