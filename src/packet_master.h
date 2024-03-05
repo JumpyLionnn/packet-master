@@ -90,11 +90,11 @@ struct DeserializerFreeBitsVector{
 //     size_t start_index;
 // };
 
-struct Deserializer {
-    Reader* reader;
-    Allocator allocator;
-    DeserializerFreeBitsVector free_bits;
-};
+// struct Deserializer {
+//     Reader* reader;
+//     Allocator allocator;
+//     DeserializerFreeBitsVector free_bits;
+// };
 
 enum class ResultStatus {
     Success = 0,
@@ -180,30 +180,62 @@ class Serializer {
         SerializerFreeBitsVector m_free_bits;
 };
 
-Deserializer create_deserializer(Reader* reader, Allocator allocator);
+class Deserializer {
+    public:
+        Deserializer(Reader* reader, Allocator* allocator);
+        ~Deserializer();
 
-void free_deserializer(Deserializer* deserializer);
+        // Deserialize uint8_t, returns 0 on failure with an error in the result
+        uint8_t deserialize_uint8(Result* result);
+        // deserialize uint8_t with max amount of bits specified. returns 0 on failure with an error in the result
+        // NOTE: passing a value with more bits than the max bits is an undefined behaviour, this is not a validator
+        uint8_t deserialize_uint8_max(uint8_t max_bits, Result* result);
 
-// Deserialize uint8_t, returns 0 on failure with an error in the result
-uint8_t deserialize_uint8(Deserializer* deserializer, Result* result);
+        // deserialize uint16_t
+        uint16_t deserialize_uint16(Result* result);
+        // deserialize uint16_t with max amount of bits specified in order to reduce the required storage space
+        uint16_t deserialize_uint16_max(uint8_t max_bits, Result* result);
 
+        // deserialize uint32_t
+        uint32_t deserialize_uint32(Result* result);
+        // deserialize uint32_t with max amount of bits specified in order to reduce the required storage space
+        uint32_t deserialize_uint32_max(uint8_t max_bits, Result* result);
 
-// deserialize uint8_t with max amount of bits specified. returns 0 on failure with an error in the result
-// NOTE: passing a value with more bits than the max bits is an undefined behaviour, this is not a validator
-uint8_t deserialize_uint8_max(Deserializer* deserializer, uint8_t max_bits, Result* result);
+        // Deserialize bool, returns false on failure with an error in the result
+        bool deserialize_bool(Result* result);
+    private:
+        uint8_t read_bit(Result* result);
+        uint64_t read_bits(size_t count, Result* result);
 
+        DeserializerFreeBits* get_free_bits(Result* result);
+    private:
+        Reader* m_reader;
+        Allocator* m_allocator;
+        DeserializerFreeBitsVector m_free_bits;
+};
 
-// deserialize uint16_t
-uint16_t deserialize_uint16(Deserializer* deserializer, Result* result);
+// Deserializer create_deserializer(Reader* reader, Allocator allocator);
 
-// deserialize uint16_t with max amount of bits specified in order to reduce the required storage space
-uint16_t deserialize_uint16_max(Deserializer* serializer, uint8_t max_bits, Result* result);
+// void free_deserializer(Deserializer* deserializer);
 
-// deserialize uint32_t
-uint32_t deserialize_uint32(Deserializer* deserializer, Result* result);
+// // Deserialize uint8_t, returns 0 on failure with an error in the result
+// uint8_t deserialize_uint8(Deserializer* deserializer, Result* result);
 
-// deserialize uint32_t with max amount of bits specified in order to reduce the required storage space
-uint32_t deserialize_uint32_max(Deserializer* deserializer, uint8_t max_bits, Result* result);
+// // deserialize uint8_t with max amount of bits specified. returns 0 on failure with an error in the result
+// // NOTE: passing a value with more bits than the max bits is an undefined behaviour, this is not a validator
+// uint8_t deserialize_uint8_max(Deserializer* deserializer, uint8_t max_bits, Result* result);
 
-// Deserialize bool, returns false on failure with an error in the result
-bool deserialize_bool(Deserializer* deserializer, Result* result);
+// // deserialize uint16_t
+// uint16_t deserialize_uint16(Deserializer* deserializer, Result* result);
+
+// // deserialize uint16_t with max amount of bits specified in order to reduce the required storage space
+// uint16_t deserialize_uint16_max(Deserializer* serializer, uint8_t max_bits, Result* result);
+
+// // deserialize uint32_t
+// uint32_t deserialize_uint32(Deserializer* deserializer, Result* result);
+
+// // deserialize uint32_t with max amount of bits specified in order to reduce the required storage space
+// uint32_t deserialize_uint32_max(Deserializer* deserializer, uint8_t max_bits, Result* result);
+
+// // Deserialize bool, returns false on failure with an error in the result
+// bool deserialize_bool(Deserializer* deserializer, Result* result);
