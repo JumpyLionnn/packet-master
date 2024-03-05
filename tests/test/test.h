@@ -20,7 +20,7 @@
 
 void _ts_start_test(const char* test_name);
 void _ts_end_test();
-static jmp_buf s_ts_assert_jmp_buf = {0};
+static jmp_buf s_ts_assert_jmp_buf = {};
 
 #define TS_RUN_TEST(test, ...) do {\
     _ts_start_test(#test);\

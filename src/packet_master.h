@@ -7,105 +7,114 @@
 
 // A writer interface to write output data in a generic way.
 // The write method should return NULL on success or any other number on failure.
-typedef struct {
-    int(*write)(void*,uint8_t*,size_t);
-    void* data;
-} Writer;
+struct Writer {
+    int(*write_callback)(void*,uint8_t*,size_t);
+    void* ctx;
+
+    int write(uint8_t* value, size_t size);
+    int write_byte(uint8_t value);
+};
 
 // A reader interface to read data in a generic way.
 // The read method should return NULL on success or any other number on failure.
 // It takes the number of bytes to be read
-typedef struct {
-    uint8_t*(*read)(void*,size_t);
-    void* data;
-} Reader;
+struct Reader{
+    uint8_t*(*read_callback)(void*,size_t);
+    void* ctx;
+
+    uint8_t* read(size_t size);
+};
 
 // A generic way to allocate memory without requiring libc
-typedef struct {
+struct Allocator{
     // allocate memory, returning NULL on failure
     // alloc(size, ctx)
-    void* (*alloc)(size_t, void*);
+    void* (*alloc_callback)(size_t, void*);
 
     // return null on failure, doesn't call free on failure
     // realloc(ptr, old_size, new_size, ctx)
-    void* (*realloc)(void*, size_t, size_t, void*);
+    void* (*realloc_callback)(void*, size_t, size_t, void*);
 
     // size will should always be the size passed into alloc
     // free(ptr, size, ctx)
-    void (*free)(void*, size_t, void*);
+    void (*free_callback)(void*, size_t, void*);
     void* ctx;
-} Allocator;
 
-typedef struct {
+    void* alloc(size_t size);
+    void* realloc(void* ptr, size_t old_size, size_t new_size);
+    void free(void* ptr, size_t size);
+};
+
+struct Buffer{
     uint8_t* data;
     size_t capacity;
     size_t size;
-} Buffer;
+};
 
 // Internal
 // a reference to a byte in the buffer which contains some free bits
-typedef struct {
+struct SerializerFreeBits{
     size_t index;
     size_t start;
     size_t end;
-} SerializerFreeBits;
+};
 
 // Internal
 // a byte with some free bits in it for read
-typedef struct {
+struct DeserializerFreeBits {
     uint8_t byte;
     uint8_t start;
     uint8_t end;
-} DeserializerFreeBits;
+};
 
 
 // Internal
-typedef struct {
+struct SerializerFreeBitsVector {
     SerializerFreeBits* data;
     size_t count;
     size_t capacity;
-} SerializerFreeBitsVector;
+};
 
 // Internal
-typedef struct {
+struct DeserializerFreeBitsVector{
     DeserializerFreeBits* data;
     size_t count;
     size_t capacity;
-} DeserializerFreeBitsVector;
+};
 
-typedef struct {
+struct Serializer{
     Writer* writer;
     Allocator allocator;
     Buffer buffer;
     SerializerFreeBitsVector free_bits;
     size_t start_index;
-} Serializer;
+};
 
-typedef struct {
+struct Deserializer {
     Reader* reader;
     Allocator allocator;
     DeserializerFreeBitsVector free_bits;
-} Deserializer;
+};
 
-typedef enum {
-    Status_Success = 0,
+enum class ResultStatus {
+    Success = 0,
     // Indicates that an attempt to allocate memory has failed (alloc function returned 0)
-    Status_MemoryAllocationFailed,
+    MemoryAllocationFailed,
     // Indicates that an attempt to perform an operation on memory(e.g. memmove) has failed
-    Status_MemoryOperationFailed,
+    MemoryOperationFailed,
     // Indicates that output has failed to be written into the writer, error code in write_error
-    Status_WriteFailed,
+    WriteFailed,
     // Indicates that input has failed to be read from the reader
-    Status_ReadFailed
-} ResultStatus;
+    ReadFailed
+};
 const char* status_to_string(ResultStatus status);
 
-typedef struct {
+struct Result {
     ResultStatus status;
     union {
         int write_error;
     } error_info;
-} Result;
+};
 
 
 int count_leading_zeros_uint_fallback(unsigned int num);

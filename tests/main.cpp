@@ -229,52 +229,52 @@ void test_deserializer(Deserializer* deserializer) {
     {
         Result result;
         ts_expect_uint8_eq(deserialize_uint8_max(deserializer, max_bits_u8(4), &result), 5);
-        ts_expect_status(result, Status_Success);
+        ts_expect_status(result, ResultStatus::Success);
     }
     {
         Result result;
         ts_expect_uint16_eq(deserialize_uint16(deserializer, &result), 1023);
-        ts_expect_status(result, Status_Success);
+        ts_expect_status(result, ResultStatus::Success);
     }
     {
         Result result;
         ts_expect_uint16_eq(deserialize_uint16(deserializer, &result), 127);
-        ts_expect_status(result, Status_Success);
+        ts_expect_status(result, ResultStatus::Success);
     }
     {
         Result result;
         ts_expect_uint16_eq(deserialize_uint16_max(deserializer, max_bits_u8(10), &result), 511);
-        ts_expect_status(result, Status_Success);
+        ts_expect_status(result, ResultStatus::Success);
     }
     {
         Result result;
         ts_expect_uint32_eq(deserialize_uint32(deserializer, &result), 0b00001111000000000000000000000000);
-        ts_expect_status(result, Status_Success);
+        ts_expect_status(result, ResultStatus::Success);
     }
     {
         Result result;
         ts_expect_uint32_eq(deserialize_uint32_max(deserializer, max_bits_u8(24), &result), 0b100000001111111100000000);
-        ts_expect_status(result, Status_Success);
+        ts_expect_status(result, ResultStatus::Success);
     }
     {
         Result result;
         ts_expect_uint32_eq(deserialize_uint32_max(deserializer, max_bits_u8(24), &result), 0b000000001111111111111111);
-        ts_expect_status(result, Status_Success);
+        ts_expect_status(result, ResultStatus::Success);
     }
     {
         Result result;
         ts_expect_uint16_eq(deserialize_uint16(deserializer, &result), 0);
-        ts_expect_status(result, Status_Success);
+        ts_expect_status(result, ResultStatus::Success);
     }
     {
         Result result;
         ts_expect_uint32_eq(deserialize_uint32(deserializer, &result), 0);
-        ts_expect_status(result, Status_Success);
+        ts_expect_status(result, ResultStatus::Success);
     }
     {
         Result result;
         ts_expect_uint8_eq(deserialize_uint8(deserializer, &result), 0);
-        ts_expect_status(result, Status_ReadFailed);
+        ts_expect_status(result, ResultStatus::ReadFailed);
     }
 }
 
@@ -284,8 +284,8 @@ int main() {
     Buffer buffer = create_buffer(10, &allocator);
     {
         Writer writer{};
-        writer.write = write_data;
-        writer.data = &buffer;
+        writer.write_callback = write_data;
+        writer.ctx = &buffer;
         Serializer serializer = create_serializer(&writer, allocator);
         TS_RUN_TEST(test_serializer, &serializer);
         free_serializer(&serializer);
@@ -296,8 +296,8 @@ int main() {
     {
         BufferReader buf_reader = read_buffer(&buffer);
         Reader reader{};
-        reader.read = read_data;
-        reader.data = &buf_reader;
+        reader.read_callback = read_data;
+        reader.ctx = &buf_reader;
         Deserializer deserializer = create_deserializer(&reader, allocator);
         TS_RUN_TEST(test_deserializer, &deserializer);
         free_deserializer(&deserializer);

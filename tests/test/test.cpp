@@ -11,9 +11,9 @@ bool _ts_expect_ ## type_name ## _eq_impl(type left, type right, const char* lef
     bool equal = left == right;\
     if (!equal) {\
         fail_test();\
-        fprintf(stderr, TAB_CHARS"%s:%zu: Test failed, expected left to equal right:\n", file, line);\
-        fprintf(stderr, TAB_CHARS TAB_CHARS"left("format"): %s\n", left, left_text);\
-        fprintf(stderr, TAB_CHARS TAB_CHARS"right("format"): %s\n", right, right_text);\
+        fprintf(stderr, TAB_CHARS "%s:%zu: Test failed, expected left to equal right:\n", file, line);\
+        fprintf(stderr, TAB_CHARS TAB_CHARS "left(" format "): %s\n", left, left_text);\
+        fprintf(stderr, TAB_CHARS TAB_CHARS "right(" format "): %s\n", right, right_text);\
     }\
     return equal;\
 }
@@ -23,9 +23,9 @@ bool _ts_expect_ ## type_name ## _eq_impl(type left, type right, const char* lef
     bool equal = left == right;\
     if (!equal) {\
         fail_test();\
-        fprintf(stderr, TAB_CHARS"%s:%zu: Test failed, expected left to equal right:\n", file, line);\
-        fprintf(stderr, TAB_CHARS TAB_CHARS"left("format"): %s\n", (format_fn)(left), left_text);\
-        fprintf(stderr, TAB_CHARS TAB_CHARS"right("format"): %s\n", (format_fn)(right), right_text);\
+        fprintf(stderr, TAB_CHARS "%s:%zu: Test failed, expected left to equal right:\n", file, line);\
+        fprintf(stderr, TAB_CHARS TAB_CHARS "left(" format "): %s\n", (format_fn)(left), left_text);\
+        fprintf(stderr, TAB_CHARS TAB_CHARS "right(" format "): %s\n", (format_fn)(right), right_text);\
     }\
     return equal;\
 }
@@ -34,8 +34,8 @@ bool _ts_expect_ ## type_name ## _eq_impl(type left, type right, const char* lef
 #define CONSOLE_ANSI_FG_GREEN "\033[32m"
 #define CONSOLE_ANSI_FG_RED "\033[91m"
 
-#define COLORED_OK CONSOLE_ANSI_FG_GREEN"ok"CONSOLE_ANSI_RESET
-#define COLORED_FAILED CONSOLE_ANSI_FG_RED"FAILED"CONSOLE_ANSI_RESET
+#define COLORED_OK CONSOLE_ANSI_FG_GREEN "ok" CONSOLE_ANSI_RESET
+#define COLORED_FAILED CONSOLE_ANSI_FG_RED "FAILED" CONSOLE_ANSI_RESET
 
 
 
@@ -77,7 +77,7 @@ expect_eq_impl_format(bool, bool, "%s", bool_to_str)
 expect_eq_impl(size_t, size, "%zu")
 
 bool _ts_expect_success_impl(Result result, const char* result_text, const char* file, size_t line) {
-    bool equal = result.status == Status_Success;
+    bool equal = result.status == ResultStatus::Success;
     if (!equal) {
         fail_test();
         fprintf(stderr, TAB_CHARS"%s:%zu: Test failed, Result was failure: %s in %s.\n", file, line, status_to_string(result.status), result_text);
