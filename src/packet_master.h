@@ -205,6 +205,14 @@ int count_leading_zeros_uint(unsigned int num);
 uint8_t max_bits_u8(uint8_t bits);
 uint8_t max_u8(uint8_t number);
 
+struct UintOptions {
+    // max amount of bits of the number
+    uint32_t max_bits;
+    // the segments of the number, leave as 0 for default behavior
+    // this is a hint because the actual number will be rounded up to the closest power of 2
+    uint32_t segments_hint;
+};
+
 class Serializer {
     public:
         Serializer(Writer* writer, Allocator* allocator);
@@ -215,6 +223,8 @@ class Serializer {
         // serialize uint8_t with max amount of bits specified in order to reduce the required storage space
         // NOTE: passing a value with more bits than the max bits is an undefined behaviour, this is not a validator
         Result serialize_uint8_max(uint8_t value, uint8_t max_bits);
+
+        Result serialize_uint8_opt(uint8_t value, UintOptions options);
 
         // serialize uint16_t
         Result serialize_uint16(uint16_t value);
@@ -238,7 +248,7 @@ class Serializer {
         void reset();
     private:
         Result push_bit(uint8_t value);
-        Result push_bits(uint64_t value, size_t count);
+        Result push_bits(uint32_t value, size_t count);
 
         Result flush_buffer();
 

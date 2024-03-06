@@ -278,8 +278,11 @@ uint32_t little_endian_to_native_endianness_uint32(uint32_t value) {
 
 uint32_t count_used_bits_uint32(uint32_t value) {
     return (uint32_t)(sizeof(unsigned int) * BYTE_SIZE - count_leading_zeros_uint((unsigned int)value));
-} 
+}
 
+uint32_t closest_power_of_two(uint32_t value) {
+    return 1 << count_used_bits_uint32(value - 1);
+}
 
 uint8_t max_bits_u8(uint8_t bits) {
     return bits;
@@ -299,12 +302,12 @@ Result Serializer::serialize_uint8(uint8_t value) {
 }
 Result Serializer::serialize_uint8_max(uint8_t value, uint8_t max_bits) {
     if (max_bits <= U8_FREE_BITS_STORAGE_MIN) {
-        return push_bits((uint64_t)value, max_bits);
+        return push_bits((uint32_t)value, max_bits);
     }
     else {
         if (max_bits < 8) {
             SerializerFreeBits free_bits{};
-            free_bits.end = 8;
+            free_bits.end = BYTE_SIZE;
             free_bits.start = max_bits;
             free_bits.index = m_buffer.length() + m_start_index;
             if (m_free_bits.push(free_bits) == nullptr) {
@@ -312,6 +315,51 @@ Result Serializer::serialize_uint8_max(uint8_t value, uint8_t max_bits) {
             }
         }
         if (m_buffer.push(value) == nullptr) {
+            return Result(ResultStatus::MemoryAllocationFailed);
+        }
+    }
+    return flush_buffer();
+}
+
+Result Serializer::serialize_uint8_opt(uint8_t value, UintOptions options) {
+    assert(options.max_bits <= sizeof(uint8_t) * BYTE_SIZE);
+    assert(options.segments_hint <= sizeof(uint8_t) * BYTE_SIZE);
+    uint32_t used_bits = count_used_bits_uint32((uint32_t)value);
+    assert(used_bits <= options.max_bits);
+    uint32_t segment_count = closest_power_of_two(options.segments_hint);
+    uint32_t small_segment_bit_count = options.max_bits / segment_count;
+    uint32_t big_segment_bit_count = small_segment_bit_count + 1;
+    uint32_t big_segment_count = options.max_bits % segment_count;
+    // uint32_t small_segment_count = segment_count - big_segment_count;
+    uint32_t segment_storage_size = count_used_bits_uint32(segment_count - 1);
+
+    uint32_t used_big_segments = min(big_segment_count, ceil_divide(used_bits, big_segment_bit_count));
+    uint32_t used_segments = used_big_segments;
+    uint32_t used_bits_by_big_segments = used_big_segments * big_segment_bit_count;
+    uint32_t final_used_bits = used_bits_by_big_segments;
+    if (used_bits_by_big_segments < used_bits) {
+        uint32_t used_small_segments = ceil_divide(used_bits - used_bits_by_big_segments, small_segment_bit_count);
+        used_segments += used_small_segments;
+        final_used_bits += used_small_segments * small_segment_bit_count;
+    }
+
+    Result result = push_bits(used_segments - 1, segment_storage_size);
+    if (result.status != ResultStatus::Success) {
+        return result;
+    }
+    // internal assert to make sure the algorithm is right
+    assert(final_used_bits <= sizeof(uint8_t) * BYTE_SIZE);
+    if (m_buffer.push(value) == nullptr) {
+        return Result(ResultStatus::MemoryAllocationFailed);
+    }
+
+    uint32_t free_bits_start = final_used_bits % BYTE_SIZE;
+    if (free_bits_start > 0) {
+        SerializerFreeBits free_bits;
+        free_bits.start = free_bits_start;
+        free_bits.end = BYTE_SIZE;
+        free_bits.index = m_buffer.length() - 1 + m_start_index;
+        if (m_free_bits.push(free_bits) == nullptr) {
             return Result(ResultStatus::MemoryAllocationFailed);
         }
     }
@@ -456,7 +504,7 @@ Result Serializer::push_bit(uint8_t value) {
     return Result(ResultStatus::Success);
 }
 
-Result Serializer::push_bits(uint64_t value, size_t count) {
+Result Serializer::push_bits(uint32_t value, size_t count) {
     while (count > 0) {
         SerializerFreeBits* free_bits = nullptr; 
         Result result = get_free_bits(&free_bits);
@@ -465,17 +513,21 @@ Result Serializer::push_bits(uint64_t value, size_t count) {
         }
 
         size_t write_count = min(free_bits->end - free_bits->start, count);
-        uint8_t data = (uint8_t)(value & BIT_MASK(0, (uint64_t)write_count, uint64_t));
+        uint8_t data = (uint8_t)(value & BIT_MASK(0, (uint32_t)write_count, uint32_t));
         m_buffer[free_bits->index - m_start_index] |= data << free_bits->start;
         free_bits->start += write_count;
         value >>= write_count;
         count -= write_count;
 
+        assert(free_bits->end >= free_bits->start);
         if (free_bits->start >= free_bits->end) {
             if (!m_free_bits.remove(0)) {
                 return Result(ResultStatus::MemoryOperationFailed);
             }
-            return flush_buffer();
+            Result result = flush_buffer();
+            if (result.status != ResultStatus::Success) {
+                return result;
+            }
         }
     }
     return Result(ResultStatus::Success);
