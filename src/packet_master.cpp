@@ -430,6 +430,12 @@ Result Serializer::finalize() {
     return result;
 }
 
+void Serializer::reset() {
+    m_free_bits.clear();
+    m_buffer.clear();
+    m_start_index = 0;
+}
+
 Result Serializer::push_bit(uint8_t value) {
     SerializerFreeBits* free_bits = nullptr;
     Result result = get_free_bits(&free_bits);
@@ -678,6 +684,10 @@ Result Deserializer::deserialize_uint32_max(uint8_t max_bits, uint32_t* value) {
 
 Result Deserializer::deserialize_bool(bool* value) {
     return read_bit((uint8_t*)value);
+}
+
+void Deserializer::reset() {
+    m_free_bits.clear();
 }
 
 Result Deserializer::read_bit(uint8_t* value) {

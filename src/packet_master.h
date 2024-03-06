@@ -234,7 +234,8 @@ class Serializer {
         // flushes the buffers and resets the serializer
         // after calling this method it is possible to reuse the same instance of the serializer
         Result finalize();
-
+        // Resets the serializer so it can be used again, preventing memory allocations
+        void reset();
     private:
         Result push_bit(uint8_t value);
         Result push_bits(uint64_t value, size_t count);
@@ -273,6 +274,9 @@ class Deserializer {
 
         // Deserialize bool, returns false on failure with an error in the result
         Result deserialize_bool(bool* value);
+
+        // Resets the deserializer so it can be used again, preventing memory allocations
+        void reset();
     private:
         Result read_bit(uint8_t* value);
         Result read_bits(size_t count, uint64_t* bits);
