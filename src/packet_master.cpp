@@ -14,8 +14,6 @@ void assert_impl(bool value, const char* expression, size_t line, const char* fi
 
 #define unimplemented() fprintf(stderr, "%s:%u: Attempt to run code marked as unimplemented.\n", __FILE__, __LINE__)
 
-#define U8_FREE_BITS_STORAGE_MIN 4
-
 int Writer::write(uint8_t * value, size_t size) {
     return this->write_callback(this->ctx, value, size);
 }
@@ -285,11 +283,21 @@ uint32_t closest_power_of_two(uint32_t value) {
     return 1 << count_used_bits_uint32(value - 1);
 }
 
-uint8_t max_bits_u8(uint8_t bits) {
-    return bits;
+PreparedUintOptions u8_default_options() {
+    UintOptions options;
+    options.max_bits = sizeof(uint8_t) * BYTE_SIZE;
+    options.segments_hint = 0; // default behaviour
+    return prepare_uint_options(options);
 }
-uint8_t max_u8(uint8_t number) {
-    return BYTE_SIZE - (uint8_t)(count_leading_zeros_uint((unsigned int)number) - (sizeof(unsigned int) - 1) * BYTE_SIZE);
+
+PreparedUintOptions max_bits_u8(uint8_t bits) {
+    UintOptions options;
+    options.max_bits = bits;
+    options.segments_hint = 0; // default behaviour
+    return prepare_uint_options(options);
+}
+PreparedUintOptions max_u8(uint8_t number) {
+    return max_bits_u8((uint8_t)count_used_bits_uint32((uint32_t)number));
 }
 
 PreparedUintOptions prepare_uint_options(UintOptions options) {
@@ -313,31 +321,8 @@ Serializer::Serializer(Writer* writer, Allocator* allocator)
 
 Serializer::~Serializer() {}
 
-Result Serializer::serialize_uint8(uint8_t value) {
-    return serialize_uint8_max(value, BYTE_SIZE);
-}
-Result Serializer::serialize_uint8_max(uint8_t value, uint8_t max_bits) {
-    if (max_bits <= U8_FREE_BITS_STORAGE_MIN) {
-        return push_bits((uint32_t)value, max_bits);
-    }
-    else {
-        if (max_bits < 8) {
-            SerializerFreeBits free_bits{};
-            free_bits.end = BYTE_SIZE;
-            free_bits.start = max_bits;
-            free_bits.index = m_buffer.length() + m_start_index;
-            if (m_free_bits.push(free_bits) == nullptr) {
-                return Result(ResultStatus::MemoryAllocationFailed);
-            }
-        }
-        if (m_buffer.push(value) == nullptr) {
-            return Result(ResultStatus::MemoryAllocationFailed);
-        }
-    }
-    return flush_buffer();
-}
-
-Result Serializer::serialize_uint8_opt(uint8_t value, PreparedUintOptions options) {
+Result Serializer::serialize_uint8(uint8_t value, PreparedUintOptions options) {
+    assert(options.max_bits <= sizeof(value) * BYTE_SIZE);
     uint32_t used_bits = count_used_bits_uint32((uint32_t)value);
     assert(used_bits <= options.max_bits);
 
@@ -379,7 +364,7 @@ Result Serializer::serialize_uint16(uint16_t value) {
 }
 Result Serializer::serialize_uint16_max(uint16_t value, uint8_t max_bits) {
     if (max_bits <= 8) {
-        return serialize_uint8_max((uint8_t)value, max_bits);
+        return serialize_uint8((uint8_t)value, max_bits_u8(max_bits));
     }
     else {
         uint32_t used_bits = count_used_bits_uint32(value);
@@ -599,37 +584,8 @@ Deserializer::Deserializer(Reader* reader, Allocator* allocator) : m_reader(read
 
 Deserializer::~Deserializer() {}
 
-Result Deserializer::deserialize_uint8(uint8_t* value) {
-    return deserialize_uint8_max(BYTE_SIZE, value);
-}
-Result Deserializer::deserialize_uint8_max(uint8_t max_bits, uint8_t* value) {
+Result Deserializer::deserialize_uint8(PreparedUintOptions options, uint8_t* value) {
     *value = 0;
-    if (max_bits <= U8_FREE_BITS_STORAGE_MIN) {
-        uint32_t bits;
-        Result res = read_bits(max_bits, &bits);
-        *value = (uint8_t)bits;
-        return res;
-    }
-    else {
-        uint8_t* byte = m_reader->read(1);
-        if (byte == NULL) {
-            return Result(ResultStatus::ReadFailed);
-        }
-        if (max_bits < 8) {
-            DeserializerFreeBits free_bits{};
-            free_bits.byte = *byte;
-            free_bits.start = max_bits;
-            free_bits.end = 8;
-            if (m_free_bits.push(free_bits) == nullptr) {
-                return Result(ResultStatus::MemoryAllocationFailed);
-            }
-        }
-        *value = *byte & BIT_MASK(0, max_bits, uint8_t);
-        return Result(ResultStatus::Success);
-    }
-}
-
-Result Deserializer::deserialize_uint8_opt(PreparedUintOptions options, uint8_t* value) {
     uint32_t used_segments;
     Result result = read_bits(options.segments_storage_size, &used_segments);
     used_segments += 1;
@@ -674,7 +630,7 @@ Result Deserializer::deserialize_uint16_max(uint8_t max_bits, uint16_t* value) {
     *value = 0;
     if (max_bits <= BYTE_SIZE) {
         uint8_t uvalue;
-        Result res = deserialize_uint8_max(max_bits, &uvalue);
+        Result res = deserialize_uint8(max_bits_u8(max_bits), &uvalue);
         *value = uvalue;
         return res;
     }

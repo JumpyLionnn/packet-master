@@ -202,9 +202,6 @@ class Vector {
 int count_leading_zeros_uint_fallback(unsigned int num);
 int count_leading_zeros_uint(unsigned int num);
 
-uint8_t max_bits_u8(uint8_t bits);
-uint8_t max_u8(uint8_t number);
-
 struct UintOptions {
     // max amount of bits of the number
     uint32_t max_bits;
@@ -222,6 +219,10 @@ struct PreparedUintOptions {
     uint32_t segments_storage_size;
 };
 
+PreparedUintOptions u8_default_options();
+PreparedUintOptions max_bits_u8(uint8_t bits);
+PreparedUintOptions max_u8(uint8_t number);
+
 PreparedUintOptions prepare_uint_options(UintOptions options);
 
 class Serializer {
@@ -229,13 +230,9 @@ class Serializer {
         Serializer(Writer* writer, Allocator* allocator);
         ~Serializer();
 
-        // serialize uint8_t
-        Result serialize_uint8(uint8_t value);
         // serialize uint8_t with max amount of bits specified in order to reduce the required storage space
         // NOTE: passing a value with more bits than the max bits is an undefined behaviour, this is not a validator
-        Result serialize_uint8_max(uint8_t value, uint8_t max_bits);
-
-        Result serialize_uint8_opt(uint8_t value, PreparedUintOptions options);
+        Result serialize_uint8(uint8_t value, PreparedUintOptions options);
 
         // serialize uint16_t
         Result serialize_uint16(uint16_t value);
@@ -277,13 +274,9 @@ class Deserializer {
         Deserializer(Reader* reader, Allocator* allocator);
         ~Deserializer();
 
-        // Deserialize uint8_t, returns 0 on failure with an error in the result
-        Result deserialize_uint8(uint8_t* value);
         // deserialize uint8_t with max amount of bits specified. returns 0 on failure with an error in the result
         // NOTE: passing a value with more bits than the max bits is an undefined behaviour, this is not a validator
-        Result deserialize_uint8_max(uint8_t max_bits, uint8_t* value);
-
-        Result deserialize_uint8_opt(PreparedUintOptions options, uint8_t* value);
+        Result deserialize_uint8(PreparedUintOptions options, uint8_t* value);
 
         // deserialize uint16_t
         Result deserialize_uint16(uint16_t* value);

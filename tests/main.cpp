@@ -99,36 +99,37 @@ void test_deserializer_bool(Deserializer* deserializer) {
     }
     {
         uint8_t value;
-        ts_expect_status(deserializer->deserialize_uint8(&value), ResultStatus::ReadFailed);
+        ts_expect_status(deserializer->deserialize_uint8(u8_default_options(), &value), ResultStatus::ReadFailed);
         ts_expect_uint8_eq(value, 0);
     }
 }
 
 
 void test_serializer_uint8(Serializer* serializer) {
-    ts_expect_success(serializer->serialize_uint8(2));
-    ts_expect_success(serializer->serialize_uint8(0));
-    ts_expect_success(serializer->serialize_uint8_max(3, max_bits_u8(4)));
+    ts_expect_success(serializer->serialize_uint8(2, u8_default_options()));
+    ts_expect_success(serializer->serialize_uint8(0, u8_default_options()));
+    ts_expect_success(serializer->serialize_uint8(3, max_bits_u8(4)));
     // 12 : 0b00001100
-    ts_expect_success(serializer->serialize_uint8_max(1, max_u8(12)));
+    ts_expect_success(serializer->serialize_uint8(1, max_u8(12)));
     // 102 : 0b01100110
-    ts_expect_success(serializer->serialize_uint8_max(36, max_u8(102)));
+    ts_expect_success(serializer->serialize_uint8(36, max_u8(102)));
     UintOptions options;
     options.max_bits = 8;
     options.segments_hint = 3;
-    ts_expect_success(serializer->serialize_uint8_opt(40, prepare_uint_options(options)));
+    // 0b00101000
+    ts_expect_success(serializer->serialize_uint8(40, prepare_uint_options(options)));
     options.max_bits = 7;
     options.segments_hint = 2;
-    ts_expect_success(serializer->serialize_uint8_opt(120, prepare_uint_options(options)));
+    ts_expect_success(serializer->serialize_uint8(120, prepare_uint_options(options)));
     ts_expect_success(serializer->finalize());
 }
 void validate_serialized_data_uint8(Vector<uint8_t>& buffer) {
     ts_assert(buffer.capacity() >= buffer.length());
     ts_expect_uint8_eq(buffer[0], 0b00000010);
     ts_expect_uint8_eq(buffer[1], 0b00000000);
-    ts_expect_uint8_eq(buffer[2], 0b00010011);
-    ts_expect_uint8_eq(buffer[3], 0b00100100);
-    ts_expect_uint8_eq(buffer[4], 0b00000011);
+    ts_expect_uint8_eq(buffer[2], 0b01100011);
+    ts_expect_uint8_eq(buffer[3], 0b00000001);
+    ts_expect_uint8_eq(buffer[4], 0b00100100);
     ts_expect_uint8_eq(buffer[5], 0b00101000);
     ts_expect_uint8_eq(buffer[6], 0b01111000);
     ts_expect_size_eq(buffer.length(), 7);
@@ -136,27 +137,27 @@ void validate_serialized_data_uint8(Vector<uint8_t>& buffer) {
 void test_deserializer_uint8(Deserializer* deserializer) {
     {
         uint8_t value;
-        ts_expect_success(deserializer->deserialize_uint8(&value));
+        ts_expect_success(deserializer->deserialize_uint8(u8_default_options(), &value));
         ts_expect_uint8_eq(value, 2);
     }
     {
         uint8_t value;
-        ts_expect_success(deserializer->deserialize_uint8(&value));
+        ts_expect_success(deserializer->deserialize_uint8(u8_default_options(), &value));
         ts_expect_uint8_eq(value, 0);
     }
     {
         uint8_t value;
-        ts_expect_success(deserializer->deserialize_uint8_max(max_bits_u8(4), &value));
+        ts_expect_success(deserializer->deserialize_uint8(max_bits_u8(4), &value));
         ts_expect_uint8_eq(value, 3);
     }
     {
         uint8_t value;
-        ts_expect_success(deserializer->deserialize_uint8_max(max_u8(12), &value));
+        ts_expect_success(deserializer->deserialize_uint8(max_u8(12), &value));
         ts_expect_uint8_eq(value, 1);
     }
     {
         uint8_t value;
-        ts_expect_success(deserializer->deserialize_uint8_max(max_u8(102), &value));
+        ts_expect_success(deserializer->deserialize_uint8(max_u8(102), &value));
         ts_expect_uint8_eq(value, 36);
     }
     UintOptions options;
@@ -164,19 +165,19 @@ void test_deserializer_uint8(Deserializer* deserializer) {
         options.max_bits = 8;
         options.segments_hint = 3;
         uint8_t value;
-        ts_expect_success(deserializer->deserialize_uint8_opt(prepare_uint_options(options), &value));
+        ts_expect_success(deserializer->deserialize_uint8(prepare_uint_options(options), &value));
         ts_expect_uint8_eq(value, 40);
     }
     {
         options.max_bits = 7;
         options.segments_hint = 2;
         uint8_t value;
-        ts_expect_success(deserializer->deserialize_uint8_opt(prepare_uint_options(options), &value));
+        ts_expect_success(deserializer->deserialize_uint8(prepare_uint_options(options), &value));
         ts_expect_uint8_eq(value, 120);
     }
     {
         uint8_t value;
-        ts_expect_status(deserializer->deserialize_uint8(&value), ResultStatus::ReadFailed);
+        ts_expect_status(deserializer->deserialize_uint8(u8_default_options(), &value), ResultStatus::ReadFailed);
         ts_expect_uint8_eq(value, 0);
     }
 }
@@ -184,17 +185,17 @@ void test_deserializer_uint8(Deserializer* deserializer) {
 
 
 void test_serializer(Serializer* serializer) {
-    ts_expect_success(serializer->serialize_uint8(2));
-    ts_expect_success(serializer->serialize_uint8(0));
-    ts_expect_success(serializer->serialize_uint8_max(3, max_bits_u8(7)));
+    ts_expect_success(serializer->serialize_uint8(2, u8_default_options()));
+    ts_expect_success(serializer->serialize_uint8(0, u8_default_options()));
+    ts_expect_success(serializer->serialize_uint8(3, max_bits_u8(7)));
     ts_expect_success(serializer->serialize_bool(true));
     ts_expect_success(serializer->serialize_bool(false));
     ts_expect_success(serializer->serialize_bool(true));
     // 5 = 0b101
-    ts_expect_success(serializer->serialize_uint8_max(5, max_bits_u8(4)));
+    ts_expect_success(serializer->serialize_uint8(5, max_bits_u8(4)));
     ts_expect_success(serializer->serialize_uint16(1023));
     ts_expect_success(serializer->serialize_uint16(127));
-    ts_expect_success(serializer->serialize_uint16_max(511, max_bits_u8(10)));
+    ts_expect_success(serializer->serialize_uint16_max(511, 10));
     ts_expect_success(serializer->serialize_uint32(0b00001111000000000000000000000000));
     ts_expect_success(serializer->serialize_uint16(0));
     ts_expect_success(serializer->serialize_uint32(0));
@@ -206,11 +207,11 @@ void validate_serialized_data(Vector<uint8_t>& buffer) {
     ts_expect_uint8_eq(buffer[0], 2);
     ts_expect_uint8_eq(buffer[1], 0);
     ts_expect_uint8_eq(buffer[2], 0b10000011);
-    ts_expect_uint8_eq(buffer[3], 0b01010110);
-    ts_expect_uint8_eq(buffer[4], 0b11111111);
-    ts_expect_uint8_eq(buffer[5], 0b00000011);
-    ts_expect_uint8_eq(buffer[6], 0b01111111);
-    ts_expect_uint8_eq(buffer[7], 0b00000111);
+    ts_expect_uint8_eq(buffer[3], 0b01110110);
+    ts_expect_uint8_eq(buffer[4], 0b00000101);
+    ts_expect_uint8_eq(buffer[5], 0b11111111);
+    ts_expect_uint8_eq(buffer[6], 0b00000011);
+    ts_expect_uint8_eq(buffer[7], 0b01111111);
     ts_expect_uint8_eq(buffer[8], 0b11111111);
     ts_expect_uint8_eq(buffer[9], 0b01);
 
@@ -229,18 +230,18 @@ void validate_serialized_data(Vector<uint8_t>& buffer) {
 void test_deserializer(Deserializer* deserializer) {
     {
         uint8_t value;
-        ts_expect_success(deserializer->deserialize_uint8(&value));
+        ts_expect_success(deserializer->deserialize_uint8(u8_default_options(), &value));
         ts_expect_uint8_eq(value, 2);
     }
     {
         uint8_t value;
-        ts_expect_success(deserializer->deserialize_uint8(&value));
+        ts_expect_success(deserializer->deserialize_uint8(u8_default_options(), &value));
         ts_expect_uint8_eq(value, 0);
     }
     {
         uint8_t value;
-        ts_expect_uint8_eq(max_u8(127), 7);
-        ts_expect_success(deserializer->deserialize_uint8_max(max_u8(127), &value));
+        ts_expect_uint8_eq(max_u8(127).max_bits, 7);
+        ts_expect_success(deserializer->deserialize_uint8(max_u8(127), &value));
         ts_expect_uint8_eq(value, 3);
     }
     {
@@ -261,7 +262,7 @@ void test_deserializer(Deserializer* deserializer) {
 
     {
         uint8_t value;
-        ts_expect_success(deserializer->deserialize_uint8_max(max_bits_u8(4), &value));
+        ts_expect_success(deserializer->deserialize_uint8(max_bits_u8(4), &value));
         ts_expect_uint8_eq(value, 5);
     }
     {
@@ -276,7 +277,7 @@ void test_deserializer(Deserializer* deserializer) {
     }
     {
         uint16_t value;
-        ts_expect_success(deserializer->deserialize_uint16_max(max_bits_u8(10), &value));
+        ts_expect_success(deserializer->deserialize_uint16_max(10, &value));
         ts_expect_uint16_eq(value, 511);
     }
     {
@@ -296,7 +297,7 @@ void test_deserializer(Deserializer* deserializer) {
     }
     {
         uint8_t value;
-        ts_expect_status(deserializer->deserialize_uint8(&value), ResultStatus::ReadFailed);
+        ts_expect_status(deserializer->deserialize_uint8(u8_default_options(), &value), ResultStatus::ReadFailed);
         ts_expect_uint8_eq(value, 0);
     }
 }
