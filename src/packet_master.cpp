@@ -283,37 +283,37 @@ uint32_t closest_power_of_two(uint32_t value) {
     return 1 << count_used_bits_uint32(value - 1);
 }
 
-PreparedUintOptions u8_default_options() {
+PreparedUintOptions uint8_default_options() {
     UintOptions options;
     options.max_bits = sizeof(uint8_t) * BYTE_SIZE;
     options.segments_hint = 0; // default behaviour
     return prepare_uint_options(options);
 }
 
-PreparedUintOptions max_bits_u8(uint32_t bits) {
+PreparedUintOptions uint8_max_bits(uint32_t bits) {
     UintOptions options;
     options.max_bits = bits;
     options.segments_hint = 0; // default behaviour
     return prepare_uint_options(options);
 }
-PreparedUintOptions max_u8(uint8_t number) {
-    return max_bits_u8(count_used_bits_uint32((uint32_t)number));
+PreparedUintOptions uint8_max(uint8_t number) {
+    return uint8_max_bits(count_used_bits_uint32((uint32_t)number));
 }
 
-PreparedUintOptions u16_default_options() {
+PreparedUintOptions uint16_default_options() {
     UintOptions options;
     options.max_bits = sizeof(uint16_t) * BYTE_SIZE;
     options.segments_hint = 0; // default behaviour
     return prepare_uint_options(options);
 }
-PreparedUintOptions max_bits_u16(uint32_t bits) {
+PreparedUintOptions uint16_max_bits(uint32_t bits) {
     UintOptions options;
     options.max_bits = bits;
     options.segments_hint = 0; // default behaviour
     return prepare_uint_options(options);
 }
-PreparedUintOptions max_u16(uint16_t number) {
-    return max_bits_u16(count_used_bits_uint32((uint32_t)number));
+PreparedUintOptions uint16_max(uint16_t number) {
+    return uint16_max_bits(count_used_bits_uint32((uint32_t)number));
 }
 
 PreparedUintOptions prepare_uint_options(UintOptions options) {
@@ -419,7 +419,7 @@ Result Serializer::serialize_uint32(uint32_t value) {
 }
 Result Serializer::serialize_uint32_max(uint32_t value, uint8_t max_bits) {
     if (max_bits <= 16) {
-        return serialize_uint16((uint16_t)value, max_bits_u16(max_bits));
+        return serialize_uint16((uint16_t)value, uint16_max_bits(max_bits));
     }
     else {
         uint32_t used_bits = count_used_bits_uint32(value);
@@ -688,7 +688,7 @@ Result Deserializer::deserialize_uint32_max(uint8_t max_bits, uint32_t* value) {
     *value = 0;
     if (max_bits <= 16) {
         uint16_t uint;
-        Result result = deserialize_uint16(max_bits_u16(max_bits), &uint);
+        Result result = deserialize_uint16(uint16_max_bits(max_bits), &uint);
         *value = uint;
         return result;
     }

@@ -219,14 +219,26 @@ struct PreparedUintOptions {
     uint32_t segments_storage_size;
 };
 
-PreparedUintOptions u8_default_options();
-PreparedUintOptions max_bits_u8(uint32_t bits);
-PreparedUintOptions max_u8(uint8_t number);
+// The default options for uint8, 1 segment 8 max bits
+PreparedUintOptions uint8_default_options();
+// Specify the max amount of bits. the number should not exceed the max amount of bits
+PreparedUintOptions uint8_max_bits(uint32_t bits);
+// Specify a max number for the serialized value
+// Note: the serializer will not validate the input to make sure the number is below the max
+PreparedUintOptions uint8_max(uint8_t number);
 
-PreparedUintOptions u16_default_options();
-PreparedUintOptions max_bits_u16(uint32_t bits);
-PreparedUintOptions max_u16(uint16_t number);
+// The default options for uint16, 2 segment 16 max bits
+PreparedUintOptions uint16_default_options();
+// Specify the max amount of bits. the number should not exceed the max amount of bits
+PreparedUintOptions uint16_max_bits(uint32_t bits);
+// Specify a max number for the serialized value
+// Note: the serializer will not validate the input to make sure the number is below the max
+PreparedUintOptions uint16_max(uint16_t number);
 
+// Prepares uint options to save some computation at serialization/deserialization time
+// valid options are:
+//    - max_bits need to be less than or equal to the size of the number in bits
+//    - segment_hint need to be less than or equal to the size of the number in bits
 PreparedUintOptions prepare_uint_options(UintOptions options);
 
 class Serializer {
@@ -235,11 +247,9 @@ class Serializer {
         ~Serializer();
 
         // serialize uint8_t with max amount of bits specified in order to reduce the required storage space
-        // NOTE: passing a value with more bits than the max bits is an undefined behaviour, this is not a validator
         Result serialize_uint8(uint8_t value, PreparedUintOptions options);
 
         // serialize uint16_t with max amount of bits specified in order to reduce the required storage space
-        // NOTE: passing a value with more bits than the max bits is an undefined behaviour, this is not a validator
         Result serialize_uint16(uint16_t value, PreparedUintOptions options);
        
         // serialize uint32_t
