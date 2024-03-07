@@ -193,11 +193,11 @@ void test_serializer(Serializer* serializer) {
     ts_expect_success(serializer->serialize_bool(true));
     // 5 = 0b101
     ts_expect_success(serializer->serialize_uint8(5, max_bits_u8(4)));
-    ts_expect_success(serializer->serialize_uint16(1023));
-    ts_expect_success(serializer->serialize_uint16(127));
-    ts_expect_success(serializer->serialize_uint16_max(511, 10));
+    ts_expect_success(serializer->serialize_uint16(1023, u16_default_options()));
+    ts_expect_success(serializer->serialize_uint16(127, u16_default_options()));
+    ts_expect_success(serializer->serialize_uint16(511, max_bits_u16(10)));
     ts_expect_success(serializer->serialize_uint32(0b00001111000000000000000000000000));
-    ts_expect_success(serializer->serialize_uint16(0));
+    ts_expect_success(serializer->serialize_uint16(0, u16_default_options()));
     ts_expect_success(serializer->serialize_uint32(0));
     ts_expect_success(serializer->finalize());
 }
@@ -267,17 +267,17 @@ void test_deserializer(Deserializer* deserializer) {
     }
     {
         uint16_t value;
-        ts_expect_success(deserializer->deserialize_uint16(&value));
+        ts_expect_success(deserializer->deserialize_uint16(u16_default_options(), &value));
         ts_expect_uint16_eq(value, 1023);
     }
     {
         uint16_t value;
-        ts_expect_success(deserializer->deserialize_uint16(&value));
+        ts_expect_success(deserializer->deserialize_uint16(u16_default_options(), &value));
         ts_expect_uint16_eq(value, 127);
     }
     {
         uint16_t value;
-        ts_expect_success(deserializer->deserialize_uint16_max(10, &value));
+        ts_expect_success(deserializer->deserialize_uint16(max_bits_u16(10), &value));
         ts_expect_uint16_eq(value, 511);
     }
     {
@@ -287,7 +287,7 @@ void test_deserializer(Deserializer* deserializer) {
     }
     {
         uint16_t value;
-        ts_expect_success(deserializer->deserialize_uint16(&value));
+        ts_expect_success(deserializer->deserialize_uint16(u16_default_options(), &value));
         ts_expect_uint16_eq(value, 0);
     }
     {

@@ -220,8 +220,12 @@ struct PreparedUintOptions {
 };
 
 PreparedUintOptions u8_default_options();
-PreparedUintOptions max_bits_u8(uint8_t bits);
+PreparedUintOptions max_bits_u8(uint32_t bits);
 PreparedUintOptions max_u8(uint8_t number);
+
+PreparedUintOptions u16_default_options();
+PreparedUintOptions max_bits_u16(uint32_t bits);
+PreparedUintOptions max_u16(uint16_t number);
 
 PreparedUintOptions prepare_uint_options(UintOptions options);
 
@@ -234,12 +238,10 @@ class Serializer {
         // NOTE: passing a value with more bits than the max bits is an undefined behaviour, this is not a validator
         Result serialize_uint8(uint8_t value, PreparedUintOptions options);
 
-        // serialize uint16_t
-        Result serialize_uint16(uint16_t value);
         // serialize uint16_t with max amount of bits specified in order to reduce the required storage space
         // NOTE: passing a value with more bits than the max bits is an undefined behaviour, this is not a validator
-        Result serialize_uint16_max(uint16_t value, uint8_t max_bits);
-
+        Result serialize_uint16(uint16_t value, PreparedUintOptions options);
+       
         // serialize uint32_t
         Result serialize_uint32(uint32_t value);
         // serialize uint32_t with max amount of bits specified in order to reduce the required storage space with some extra size optimizations
@@ -278,10 +280,8 @@ class Deserializer {
         // NOTE: passing a value with more bits than the max bits is an undefined behaviour, this is not a validator
         Result deserialize_uint8(PreparedUintOptions options, uint8_t* value);
 
-        // deserialize uint16_t
-        Result deserialize_uint16(uint16_t* value);
         // deserialize uint16_t with max amount of bits specified in order to reduce the required storage space
-        Result deserialize_uint16_max(uint8_t max_bits, uint16_t* value);
+        Result deserialize_uint16(PreparedUintOptions options, uint16_t* value);
 
         // deserialize uint32_t
         Result deserialize_uint32(uint32_t* value);
