@@ -116,10 +116,10 @@ void test_serializer_uint8(Serializer* serializer) {
     UintOptions options;
     options.max_bits = 8;
     options.segments_hint = 3;
-    ts_expect_success(serializer->serialize_uint8_opt(40, options));
+    ts_expect_success(serializer->serialize_uint8_opt(40, prepare_uint_options(options)));
     options.max_bits = 7;
     options.segments_hint = 2;
-    ts_expect_success(serializer->serialize_uint8_opt(120, options));
+    ts_expect_success(serializer->serialize_uint8_opt(120, prepare_uint_options(options)));
     ts_expect_success(serializer->finalize());
 }
 void validate_serialized_data_uint8(Vector<uint8_t>& buffer) {
@@ -164,14 +164,14 @@ void test_deserializer_uint8(Deserializer* deserializer) {
         options.max_bits = 8;
         options.segments_hint = 3;
         uint8_t value;
-        ts_expect_success(deserializer->deserialize_uint8_opt(options, &value));
+        ts_expect_success(deserializer->deserialize_uint8_opt(prepare_uint_options(options), &value));
         ts_expect_uint8_eq(value, 40);
     }
     {
         options.max_bits = 7;
         options.segments_hint = 2;
         uint8_t value;
-        ts_expect_success(deserializer->deserialize_uint8_opt(options, &value));
+        ts_expect_success(deserializer->deserialize_uint8_opt(prepare_uint_options(options), &value));
         ts_expect_uint8_eq(value, 120);
     }
     {

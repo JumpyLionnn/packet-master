@@ -292,6 +292,21 @@ uint8_t max_u8(uint8_t number) {
     return BYTE_SIZE - (uint8_t)(count_leading_zeros_uint((unsigned int)number) - (sizeof(unsigned int) - 1) * BYTE_SIZE);
 }
 
+PreparedUintOptions prepare_uint_options(UintOptions options) {
+    PreparedUintOptions result;
+    result.max_bits = options.max_bits;
+    if (options.segments_hint == 0) {
+        result.segment_count = closest_power_of_two(ceil_divide(options.max_bits, BYTE_SIZE));
+    } else {
+        result.segment_count = closest_power_of_two(options.segments_hint);
+    }
+    result.small_segment_size = options.max_bits / result.segment_count;
+    result.big_segment_size = result.small_segment_size + 1;
+    result.big_segment_count = options.max_bits % result.segment_count;
+    result.segments_storage_size = count_used_bits_uint32(result.segment_count - 1);
+    return result;
+}
+
 Serializer::Serializer(Writer* writer, Allocator* allocator) 
     : m_writer(writer), m_start_index(0), m_buffer(allocator), m_free_bits(allocator) {
 }
@@ -322,29 +337,21 @@ Result Serializer::serialize_uint8_max(uint8_t value, uint8_t max_bits) {
     return flush_buffer();
 }
 
-Result Serializer::serialize_uint8_opt(uint8_t value, UintOptions options) {
-    assert(options.max_bits <= sizeof(uint8_t) * BYTE_SIZE);
-    assert(options.segments_hint <= sizeof(uint8_t) * BYTE_SIZE);
+Result Serializer::serialize_uint8_opt(uint8_t value, PreparedUintOptions options) {
     uint32_t used_bits = count_used_bits_uint32((uint32_t)value);
     assert(used_bits <= options.max_bits);
-    uint32_t segment_count = closest_power_of_two(options.segments_hint);
-    uint32_t small_segment_bit_count = options.max_bits / segment_count;
-    uint32_t big_segment_bit_count = small_segment_bit_count + 1;
-    uint32_t big_segment_count = options.max_bits % segment_count;
-    // uint32_t small_segment_count = segment_count - big_segment_count;
-    uint32_t segment_storage_size = count_used_bits_uint32(segment_count - 1);
 
-    uint32_t used_big_segments = min(big_segment_count, ceil_divide(used_bits, big_segment_bit_count));
+    uint32_t used_big_segments = min(options.big_segment_count, ceil_divide(used_bits, options.big_segment_size));
     uint32_t used_segments = used_big_segments;
-    uint32_t used_bits_by_big_segments = used_big_segments * big_segment_bit_count;
+    uint32_t used_bits_by_big_segments = used_big_segments * options.big_segment_size;
     uint32_t final_used_bits = used_bits_by_big_segments;
     if (used_bits_by_big_segments < used_bits) {
-        uint32_t used_small_segments = ceil_divide(used_bits - used_bits_by_big_segments, small_segment_bit_count);
+        uint32_t used_small_segments = ceil_divide(used_bits - used_bits_by_big_segments, options.small_segment_size);
         used_segments += used_small_segments;
-        final_used_bits += used_small_segments * small_segment_bit_count;
+        final_used_bits += used_small_segments * options.small_segment_size;
     }
 
-    Result result = push_bits(used_segments - 1, segment_storage_size);
+    Result result = push_bits(used_segments - 1, options.segments_storage_size);
     if (result.status != ResultStatus::Success) {
         return result;
     }
@@ -622,29 +629,21 @@ Result Deserializer::deserialize_uint8_max(uint8_t max_bits, uint8_t* value) {
     }
 }
 
-Result Deserializer::deserialize_uint8_opt(UintOptions options, uint8_t* value) {
-    assert(options.max_bits <= sizeof(uint8_t) * BYTE_SIZE);
-    assert(options.segments_hint <= sizeof(uint8_t) * BYTE_SIZE);
-    uint32_t segment_count = closest_power_of_two(options.segments_hint);
-    uint32_t small_segment_size = options.max_bits / segment_count;
-    uint32_t big_segment_size = small_segment_size + 1;
-    uint32_t big_segment_count = options.max_bits % segment_count;
-    uint32_t segments_storage_size = count_used_bits_uint32(segment_count - 1);
-
+Result Deserializer::deserialize_uint8_opt(PreparedUintOptions options, uint8_t* value) {
     uint32_t used_segments;
-    Result result = read_bits(segments_storage_size, &used_segments);
+    Result result = read_bits(options.segments_storage_size, &used_segments);
     used_segments += 1;
     if (result.status != ResultStatus::Success) {
         return result;
     }
     
     uint32_t used_bits;
-    if (used_segments > big_segment_count) {
-        uint32_t used_small_segments = used_segments - big_segment_count;
-        used_bits = big_segment_count * big_segment_size + used_small_segments * small_segment_size;
+    if (used_segments > options.big_segment_count) {
+        uint32_t used_small_segments = used_segments - options.big_segment_count;
+        used_bits = options.big_segment_count * options.big_segment_size + used_small_segments * options.small_segment_size;
     }
     else {
-        used_bits = used_segments * big_segment_size;
+        used_bits = used_segments * options.big_segment_size;
     }
     
     uint32_t used_bytes = ceil_divide(used_bits, BYTE_SIZE);

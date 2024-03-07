@@ -213,6 +213,17 @@ struct UintOptions {
     uint32_t segments_hint;
 };
 
+struct PreparedUintOptions {
+    uint32_t max_bits;
+    uint32_t segment_count;
+    uint32_t small_segment_size;
+    uint32_t big_segment_size;
+    uint32_t big_segment_count;
+    uint32_t segments_storage_size;
+};
+
+PreparedUintOptions prepare_uint_options(UintOptions options);
+
 class Serializer {
     public:
         Serializer(Writer* writer, Allocator* allocator);
@@ -224,7 +235,7 @@ class Serializer {
         // NOTE: passing a value with more bits than the max bits is an undefined behaviour, this is not a validator
         Result serialize_uint8_max(uint8_t value, uint8_t max_bits);
 
-        Result serialize_uint8_opt(uint8_t value, UintOptions options);
+        Result serialize_uint8_opt(uint8_t value, PreparedUintOptions options);
 
         // serialize uint16_t
         Result serialize_uint16(uint16_t value);
@@ -272,7 +283,7 @@ class Deserializer {
         // NOTE: passing a value with more bits than the max bits is an undefined behaviour, this is not a validator
         Result deserialize_uint8_max(uint8_t max_bits, uint8_t* value);
 
-        Result deserialize_uint8_opt(UintOptions options, uint8_t* value);
+        Result deserialize_uint8_opt(PreparedUintOptions options, uint8_t* value);
 
         // deserialize uint16_t
         Result deserialize_uint16(uint16_t* value);
