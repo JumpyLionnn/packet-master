@@ -272,6 +272,8 @@ class Deserializer {
         // NOTE: passing a value with more bits than the max bits is an undefined behaviour, this is not a validator
         Result deserialize_uint8_max(uint8_t max_bits, uint8_t* value);
 
+        Result deserialize_uint8_opt(UintOptions options, uint8_t* value);
+
         // deserialize uint16_t
         Result deserialize_uint16(uint16_t* value);
         // deserialize uint16_t with max amount of bits specified in order to reduce the required storage space
@@ -289,7 +291,7 @@ class Deserializer {
         void reset();
     private:
         Result read_bit(uint8_t* value);
-        Result read_bits(size_t count, uint64_t* bits);
+        Result read_bits(size_t count, uint32_t* bits);
 
         Result get_free_bits(DeserializerFreeBits** out_free_bits);
     private:

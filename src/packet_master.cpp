@@ -79,6 +79,7 @@ int count_leading_zeros_uint_fallback(unsigned int num) {
 #include <intrin0.inl.h>
 #endif
 
+// TODO: change this function to have a fixed size input and output, uint32_t
 int count_leading_zeros_uint(unsigned int num) {
     #if defined(__GNUC__) || defined(__GNUG__) || defined(__clang__)
         // supported in clang and gcc
@@ -347,7 +348,7 @@ Result Serializer::serialize_uint8_opt(uint8_t value, UintOptions options) {
     if (result.status != ResultStatus::Success) {
         return result;
     }
-    // internal assert to make sure the algorithm is right
+
     assert(final_used_bits <= sizeof(uint8_t) * BYTE_SIZE);
     if (m_buffer.push(value) == nullptr) {
         return Result(ResultStatus::MemoryAllocationFailed);
@@ -505,6 +506,7 @@ Result Serializer::push_bit(uint8_t value) {
 }
 
 Result Serializer::push_bits(uint32_t value, size_t count) {
+    assert(count <= sizeof(uint32_t) * BYTE_SIZE);
     while (count > 0) {
         SerializerFreeBits* free_bits = nullptr; 
         Result result = get_free_bits(&free_bits);
@@ -596,7 +598,7 @@ Result Deserializer::deserialize_uint8(uint8_t* value) {
 Result Deserializer::deserialize_uint8_max(uint8_t max_bits, uint8_t* value) {
     *value = 0;
     if (max_bits <= U8_FREE_BITS_STORAGE_MIN) {
-        uint64_t bits;
+        uint32_t bits;
         Result res = read_bits(max_bits, &bits);
         *value = (uint8_t)bits;
         return res;
@@ -620,6 +622,52 @@ Result Deserializer::deserialize_uint8_max(uint8_t max_bits, uint8_t* value) {
     }
 }
 
+Result Deserializer::deserialize_uint8_opt(UintOptions options, uint8_t* value) {
+    assert(options.max_bits <= sizeof(uint8_t) * BYTE_SIZE);
+    assert(options.segments_hint <= sizeof(uint8_t) * BYTE_SIZE);
+    uint32_t segment_count = closest_power_of_two(options.segments_hint);
+    uint32_t small_segment_size = options.max_bits / segment_count;
+    uint32_t big_segment_size = small_segment_size + 1;
+    uint32_t big_segment_count = options.max_bits % segment_count;
+    uint32_t segments_storage_size = count_used_bits_uint32(segment_count - 1);
+
+    uint32_t used_segments;
+    Result result = read_bits(segments_storage_size, &used_segments);
+    used_segments += 1;
+    if (result.status != ResultStatus::Success) {
+        return result;
+    }
+    
+    uint32_t used_bits;
+    if (used_segments > big_segment_count) {
+        uint32_t used_small_segments = used_segments - big_segment_count;
+        used_bits = big_segment_count * big_segment_size + used_small_segments * small_segment_size;
+    }
+    else {
+        used_bits = used_segments * big_segment_size;
+    }
+    
+    uint32_t used_bytes = ceil_divide(used_bits, BYTE_SIZE);
+    assert(used_bytes == 1); // for uint8_t
+
+    uint8_t* byte = m_reader->read((size_t)used_bytes);
+    if (byte == nullptr) {
+        return Result(ResultStatus::ReadFailed);
+    }
+    *value = *byte & BIT_MASK(0, used_bits, uint8_t);
+    uint32_t free_bits_start = used_bits % BYTE_SIZE;
+    if (free_bits_start > 0) {
+        DeserializerFreeBits free_bits;
+        free_bits.start = free_bits_start;
+        free_bits.end = BYTE_SIZE;
+        free_bits.byte = *byte;
+        if (m_free_bits.push(free_bits) == nullptr) {
+            return Result(ResultStatus::MemoryAllocationFailed);
+        }
+    }
+    return Result(ResultStatus::Success);
+}
+
 Result Deserializer::deserialize_uint16(uint16_t* value) {
     return deserialize_uint16_max(16, value);
 }
@@ -634,7 +682,7 @@ Result Deserializer::deserialize_uint16_max(uint8_t max_bits, uint16_t* value) {
     else {
         uint32_t byte_count_size = count_used_bits_uint32(sizeof(uint16_t) - 1);
         assert(byte_count_size == 1);
-        uint64_t byte_count;
+        uint32_t byte_count;
         Result result = read_bits(byte_count_size, &byte_count);
         byte_count += 1;
         if (result.status != ResultStatus::Success) {
@@ -690,7 +738,7 @@ Result Deserializer::deserialize_uint32_max(uint8_t max_bits, uint32_t* value) {
                 // middle byte = 2
                 // count is 1 or 0
                 // actual   3 or 1
-                uint64_t count;
+                uint32_t count;
                 Result result = read_bits(byte_count_size - 1, &count);
                 count += 1;
                 if (result.status != ResultStatus::Success) {
@@ -703,7 +751,7 @@ Result Deserializer::deserialize_uint32_max(uint8_t max_bits, uint32_t* value) {
             }
         }
         else {
-            uint64_t count;
+            uint32_t count;
             Result result = read_bits(byte_count_size, &count);
             byte_count = count + 1;
             if (result.status != ResultStatus::Success) {
@@ -759,7 +807,8 @@ Result Deserializer::read_bit(uint8_t* value) {
     return Result(ResultStatus::Success);
 }
 
-Result Deserializer::read_bits(size_t count, uint64_t* value) {
+Result Deserializer::read_bits(size_t count, uint32_t* value) {
+    assert(count <= sizeof(uint32_t) * BYTE_SIZE);
     *value = 0;
     size_t index = 0;
     while (count > 0) {
@@ -770,7 +819,7 @@ Result Deserializer::read_bits(size_t count, uint64_t* value) {
             return result;
         }
         size_t read_count = min(free_bits->end - free_bits->start, count);
-        uint64_t data = (free_bits->byte & BIT_MASK(free_bits->start, read_count, uint64_t)) >> free_bits->start;
+        uint32_t data = (free_bits->byte & BIT_MASK(free_bits->start, read_count, uint32_t)) >> free_bits->start;
         *value |= data << index;
         index += read_count;
         count -= read_count;

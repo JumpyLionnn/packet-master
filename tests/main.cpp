@@ -159,11 +159,26 @@ void test_deserializer_uint8(Deserializer* deserializer) {
         ts_expect_success(deserializer->deserialize_uint8_max(max_u8(102), &value));
         ts_expect_uint8_eq(value, 36);
     }
-    // {
-    //     uint8_t value;
-    //     ts_expect_status(deserializer->deserialize_uint8(&value), ResultStatus::ReadFailed);
-    //     ts_expect_uint8_eq(value, 0);
-    // }
+    UintOptions options;
+    {
+        options.max_bits = 8;
+        options.segments_hint = 3;
+        uint8_t value;
+        ts_expect_success(deserializer->deserialize_uint8_opt(options, &value));
+        ts_expect_uint8_eq(value, 40);
+    }
+    {
+        options.max_bits = 7;
+        options.segments_hint = 2;
+        uint8_t value;
+        ts_expect_success(deserializer->deserialize_uint8_opt(options, &value));
+        ts_expect_uint8_eq(value, 120);
+    }
+    {
+        uint8_t value;
+        ts_expect_status(deserializer->deserialize_uint8(&value), ResultStatus::ReadFailed);
+        ts_expect_uint8_eq(value, 0);
+    }
 }
 
 
