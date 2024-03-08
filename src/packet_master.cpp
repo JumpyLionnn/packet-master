@@ -1,7 +1,7 @@
 #include "packet_master.h"
 
 #define BYTE_SIZE 8
-#define BIT_MASK(start, count, type) ((type)~((type)(~(type)0) << (type)(count)) << (type)(start))
+#define BIT_MASK(start, count, type) ((type)~(bit_shift_left((type)(~(type)0), (type)(count))) << (type)(start))
 
 #ifdef ENABLE_ASSERT
 #include <stdio.h>
@@ -54,6 +54,57 @@ const char* status_to_string(ResultStatus status) {
         return "unknown";
     }  
 }
+
+// safer implementation of a bit shift to allow shifting by the type bit size without causing undefined behaviour
+// bit shifting left by the bit size of the number will return 0
+template<typename T>
+static inline T bit_shift_left(T a, T b);
+
+#ifdef UINT16_MAX
+template<>
+inline uint8_t bit_shift_left<uint8_t>(uint8_t a, uint8_t b) {
+    return (uint16_t)a << b;
+}
+#else
+template<>
+inline uint8_t bit_shift_left<uint8_t>(uint8_t a, uint8_t b) {
+    if (b >= sizeof(a) * BYTE_SIZE) {
+        return 0;
+    }
+    return a << b;
+}
+#endif
+
+#ifdef UINT32_MAX
+template<>
+inline uint16_t bit_shift_left<uint16_t>(uint16_t a, uint16_t b) {
+    return (uint32_t)a << b;
+}
+#else
+template<>
+inline uint16_t bit_shift_left<uint16_t>(uint16_t a, uint16_t b) {
+    if (b >= sizeof(a) * BYTE_SIZE) {
+        return 0;
+    }
+    return a << b;
+}
+#endif
+
+#ifdef UINT64_MAX
+template<>
+inline uint32_t bit_shift_left<uint32_t>(uint32_t a, uint32_t b) {
+    return (uint64_t)a << b;
+}
+#else
+template<>
+inline uint32_t bit_shift_left<uint32_t>(uint32_t a, uint32_t b) {
+    if (b >= sizeof(a) * BYTE_SIZE) {
+        return 0;
+    }
+    return a << b;
+}
+#endif
+
 
 int count_leading_zeros_uint_fallback(unsigned int num) {
     int higher_bits = 32;
@@ -258,7 +309,7 @@ uint32_t native_endianness_to_little_endian(uint32_t value) {
     }
 }
 
-uint16_t little_endian_to_native_endianness_uint16(uint16_t value) {
+uint16_t little_endian_to_native_endianness(uint16_t value) {
     if (detect_endianness() == BigEndian) {
         return swap_byte_order(value);
     }
@@ -266,7 +317,7 @@ uint16_t little_endian_to_native_endianness_uint16(uint16_t value) {
         return value;
     }
 }
-uint32_t little_endian_to_native_endianness_uint32(uint32_t value) {
+uint32_t little_endian_to_native_endianness(uint32_t value) {
     if (detect_endianness() == BigEndian) {
         return swap_byte_order(value);
     }
@@ -314,6 +365,22 @@ PreparedUintOptions uint16_max_bits(uint32_t bits) {
 }
 PreparedUintOptions uint16_max(uint16_t number) {
     return uint16_max_bits(count_used_bits_uint32((uint32_t)number));
+}
+
+PreparedUintOptions uint32_default_options() {
+    UintOptions options;
+    options.max_bits = sizeof(uint32_t) * BYTE_SIZE;
+    options.segments_hint = 0; // default behaviour
+    return prepare_uint_options(options);
+}
+PreparedUintOptions uint32_max_bits(uint32_t bits) {
+    UintOptions options;
+    options.max_bits = bits;
+    options.segments_hint = 0; // default behaviour
+    return prepare_uint_options(options);
+}
+PreparedUintOptions uint32_max(uint32_t number) {
+    return uint32_max_bits(count_used_bits_uint32(number));
 }
 
 PreparedUintOptions prepare_uint_options(UintOptions options) {
@@ -414,70 +481,43 @@ Result Serializer::serialize_uint16(uint16_t value, PreparedUintOptions options)
     return flush_buffer();
 }
 
-Result Serializer::serialize_uint32(uint32_t value) {
-    return serialize_uint32_max(value, 32);
-}
-Result Serializer::serialize_uint32_max(uint32_t value, uint8_t max_bits) {
-    if (max_bits <= 16) {
-        return serialize_uint16((uint16_t)value, uint16_max_bits(max_bits));
+Result Serializer::serialize_uint32(uint32_t value, PreparedUintOptions options) {
+    assert(options.max_bits <= sizeof(value) * BYTE_SIZE);
+    uint32_t used_bits = max(count_used_bits_uint32(value), 1);
+    assert(used_bits <= options.max_bits);
+
+    uint32_t used_big_segments = min(options.big_segment_count, ceil_divide(used_bits, options.big_segment_size));
+    uint32_t used_segments = used_big_segments;
+    uint32_t used_bits_by_big_segments = used_big_segments * options.big_segment_size;
+    uint32_t final_used_bits = used_bits_by_big_segments;
+    if (used_bits_by_big_segments < used_bits) {
+        uint32_t used_small_segments = ceil_divide(used_bits - used_bits_by_big_segments, options.small_segment_size);
+        used_segments += used_small_segments;
+        final_used_bits += used_small_segments * options.small_segment_size;
     }
-    else {
-        uint32_t used_bits = count_used_bits_uint32(value);
-        assert(used_bits <= max_bits);
-        uint32_t used_bytes = max(ceil_divide(used_bits, BYTE_SIZE), 1);
-        uint8_t max_bytes = ceil_divide(max_bits, BYTE_SIZE);
-        uint32_t byte_count_size = count_used_bits_uint32(max_bytes - 1);
-        // example:
-        // max_bits = 20 // 3 bytes max
-        // used_bytes 3 // 01...
-        // used_bytes 2 // 1...
-        // used_bytes 1 // 00...
 
-        // need to check whether -1 is going to change the amount of stored bits
-        // if it does and if the byte count is the middle store only 1 otherwise store 0 and then the rest of the number (-1 if the number is above the middle)
-        // otherwise store the byte count normally
-        // why: the middle number has the highest probability(without any extra data) to exist therefore we optimize the size even further and remove 1 unnecessary bit
+    Result result = push_bits(used_segments - 1, options.segments_storage_size);
+    if (result.status != ResultStatus::Success) {
+        return result;
+    }
 
-        // generic way to be easy to port to different types
-        Result result;
-        if (count_used_bits_uint32(max_bytes - 2) != byte_count_size) {
-            // if the max bytes is 3 and the used bytes is 2
-            uint8_t middle_byte = (max_bytes + 1) / 2;
-            if (used_bytes == middle_byte) {
-                result = push_bit(1);
-            }
-            else {
-                uint32_t byte_count = used_bytes;
-                if (byte_count > middle_byte) {
-                    byte_count--;
-                }
-                // the first bit is zero to indicate there are some length bits after it
-                result = push_bits((byte_count - 1) << 1, byte_count_size);
-            }
-        }
-        else {
-            result = push_bits(used_bytes - 1, byte_count_size);
-        }
-        if (result.status != ResultStatus::Success) {
-            return result;
-        }
+    uint32_t used_bytes = ceil_divide(final_used_bits, BYTE_SIZE);
+    uint32_t little_endian = native_endianness_to_little_endian(value);
+    if (m_buffer.push_many((uint8_t*)&little_endian, (size_t)used_bytes) == nullptr) {
+        return Result(ResultStatus::MemoryAllocationFailed);
+    }
 
-        uint32_t little_endian = native_endianness_to_little_endian(value);
-        if (m_buffer.push_many((uint8_t*)&little_endian, used_bytes) == nullptr) {
+    uint32_t free_bits_start = final_used_bits % BYTE_SIZE;
+    if (free_bits_start > 0) {
+        SerializerFreeBits free_bits;
+        free_bits.start = free_bits_start;
+        free_bits.end = BYTE_SIZE;
+        free_bits.index = m_buffer.length() - 1 + m_start_index;
+        if (m_free_bits.push(free_bits) == nullptr) {
             return Result(ResultStatus::MemoryAllocationFailed);
         }
-        if (used_bytes * BYTE_SIZE > max_bits) {
-            uint32_t free_bits_start = max_bits % BYTE_SIZE;
-            SerializerFreeBits free_bits{};
-            free_bits.start = free_bits_start;
-            free_bits.end = BYTE_SIZE;
-            free_bits.index = m_buffer.length() - 1 + m_start_index;
-            if (m_free_bits.push(free_bits) == nullptr) {
-                return Result(ResultStatus::MemoryAllocationFailed);
-            }
-        }
-        return flush_buffer();
     }
+    return flush_buffer();
 }
 
 Result Serializer::serialize_bool(bool value) {
@@ -667,7 +707,7 @@ Result Deserializer::deserialize_uint16(PreparedUintOptions options, uint16_t* v
         return Result(ResultStatus::ReadFailed);
     }
     uint16_t little_endian = *(uint16_t*)byte & BIT_MASK(0, used_bits, uint16_t);
-    *value = little_endian_to_native_endianness_uint16(little_endian);
+    *value = little_endian_to_native_endianness(little_endian);
     uint32_t free_bits_start = used_bits % BYTE_SIZE;
     if (free_bits_start > 0) {
         DeserializerFreeBits free_bits;
@@ -681,77 +721,43 @@ Result Deserializer::deserialize_uint16(PreparedUintOptions options, uint16_t* v
     return Result(ResultStatus::Success);
 }
 
-Result Deserializer::deserialize_uint32(uint32_t* value) {
-    return deserialize_uint32_max(32, value);
-}
-Result Deserializer::deserialize_uint32_max(uint8_t max_bits, uint32_t* value) {
+Result Deserializer::deserialize_uint32(PreparedUintOptions options, uint32_t* value) {
     *value = 0;
-    if (max_bits <= 16) {
-        uint16_t uint;
-        Result result = deserialize_uint16(uint16_max_bits(max_bits), &uint);
-        *value = uint;
+    uint32_t used_segments;
+    Result result = read_bits(options.segments_storage_size, &used_segments);
+    used_segments += 1;
+    if (result.status != ResultStatus::Success) {
         return result;
     }
-    else {
-        uint8_t max_bytes = ceil_divide(max_bits, BYTE_SIZE);
-        uint32_t byte_count_size = count_used_bits_uint32(max_bytes - 1);
-        size_t byte_count;
-        if (count_used_bits_uint32(max_bytes - 2) != byte_count_size) {
-            uint8_t is_middle; 
-            Result result = read_bit(&is_middle);
-            if (result.status != ResultStatus::Success) {
-                return result;
-            }
-            uint8_t middle_byte = (max_bytes + 1) / 2;
-            if (is_middle) {
-                byte_count = middle_byte;
-            }
-            else {
-                // middle byte = 2
-                // count is 1 or 0
-                // actual   3 or 1
-                uint32_t count;
-                Result result = read_bits(byte_count_size - 1, &count);
-                count += 1;
-                if (result.status != ResultStatus::Success) {
-                    return result;
-                }
-                if (count + 1 >= middle_byte) {
-                    count++;
-                }
-                byte_count = count;
-            }
-        }
-        else {
-            uint32_t count;
-            Result result = read_bits(byte_count_size, &count);
-            byte_count = count + 1;
-            if (result.status != ResultStatus::Success) {
-                return result;
-            }
-        }
+    
 
-        uint8_t* bytes = m_reader->read(byte_count);
-        if (bytes == NULL) {
-            return Result(ResultStatus::ReadFailed);
-        }
-        uint32_t max = min((uint32_t)max_bits, (uint32_t)(byte_count * BYTE_SIZE));
-        uint32_t little_endian = (*(uint32_t*)bytes) & BIT_MASK(0, min(max, 31), uint32_t);
-        *value = little_endian_to_native_endianness_uint32(little_endian);
-
-        if (byte_count * BYTE_SIZE > max_bits) {
-            uint8_t start = max_bits % 8;
-            DeserializerFreeBits free_bits{};
-            free_bits.byte = bytes[byte_count - 1];
-            free_bits.start = start;
-            free_bits.end = 8;
-            if (m_free_bits.push(free_bits) == nullptr) {
-                return Result(ResultStatus::MemoryAllocationFailed);
-            }
-        }
-
-        return Result(ResultStatus::Success);
+    uint32_t used_bits;
+    if (used_segments > options.big_segment_count) {
+        uint32_t used_small_segments = used_segments - options.big_segment_count;
+        used_bits = options.big_segment_count * options.big_segment_size + used_small_segments * options.small_segment_size;
     }
+    else {
+        used_bits = used_segments * options.big_segment_size;
+    }
+    
+    uint32_t used_bytes = ceil_divide(used_bits, BYTE_SIZE);
+    uint8_t* byte = m_reader->read((size_t)used_bytes);
+    if (byte == nullptr) {
+        return Result(ResultStatus::ReadFailed);
+    }
+    uint32_t little_endian = *(uint32_t*)byte & BIT_MASK(0, used_bits, uint32_t);
+    *value = little_endian_to_native_endianness(little_endian);
+    uint32_t free_bits_start = used_bits % BYTE_SIZE;
+    if (free_bits_start > 0) {
+        DeserializerFreeBits free_bits;
+        free_bits.start = free_bits_start;
+        free_bits.end = BYTE_SIZE;
+        free_bits.byte = *byte;
+        if (m_free_bits.push(free_bits) == nullptr) {
+            return Result(ResultStatus::MemoryAllocationFailed);
+        }
+    }
+    return Result(ResultStatus::Success);
 }
 
 Result Deserializer::deserialize_bool(bool* value) {

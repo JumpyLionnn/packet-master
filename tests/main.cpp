@@ -104,7 +104,6 @@ void test_deserializer_bool(Deserializer* deserializer) {
     }
 }
 
-
 void test_serializer_uint8(Serializer* serializer) {
     ts_expect_success(serializer->serialize_uint8(2, uint8_default_options()));
     ts_expect_success(serializer->serialize_uint8(0, uint8_default_options()));
@@ -196,9 +195,9 @@ void test_serializer(Serializer* serializer) {
     ts_expect_success(serializer->serialize_uint16(1023, uint16_default_options()));
     ts_expect_success(serializer->serialize_uint16(127, uint16_default_options()));
     ts_expect_success(serializer->serialize_uint16(511, uint16_max_bits(10)));
-    ts_expect_success(serializer->serialize_uint32(0b00001111000000000000000000000000));
+    ts_expect_success(serializer->serialize_uint32(0b00001111000000000000000000000000, uint32_default_options()));
     ts_expect_success(serializer->serialize_uint16(0, uint16_default_options()));
-    ts_expect_success(serializer->serialize_uint32(0));
+    ts_expect_success(serializer->serialize_uint32(0, uint32_default_options()));
     ts_expect_success(serializer->finalize());
 }
 
@@ -282,7 +281,7 @@ void test_deserializer(Deserializer* deserializer) {
     }
     {
         uint32_t value;
-        ts_expect_success(deserializer->deserialize_uint32(&value));
+        ts_expect_success(deserializer->deserialize_uint32(uint32_default_options(), &value));
         ts_expect_uint32_eq(value, 0b00001111000000000000000000000000);
     }
     {
@@ -292,7 +291,7 @@ void test_deserializer(Deserializer* deserializer) {
     }
     {
         uint32_t value;
-        ts_expect_success(deserializer->deserialize_uint32(&value));
+        ts_expect_success(deserializer->deserialize_uint32(uint32_default_options(), &value));
         ts_expect_uint32_eq(value, 0);
     }
     {

@@ -235,6 +235,14 @@ PreparedUintOptions uint16_max_bits(uint32_t bits);
 // Note: the serializer will not validate the input to make sure the number is below the max
 PreparedUintOptions uint16_max(uint16_t number);
 
+// The default options for uint32, 4 segment 32 max bits
+PreparedUintOptions uint32_default_options();
+// Specify the max amount of bits. the number should not exceed the max amount of bits
+PreparedUintOptions uint32_max_bits(uint32_t bits);
+// Specify a max number for the serialized value
+// Note: the serializer will not validate the input to make sure the number is below the max
+PreparedUintOptions uint32_max(uint32_t number);
+
 // Prepares uint options to save some computation at serialization/deserialization time
 // valid options are:
 //    - max_bits need to be less than or equal to the size of the number in bits
@@ -252,11 +260,9 @@ class Serializer {
         // serialize uint16_t with max amount of bits specified in order to reduce the required storage space
         Result serialize_uint16(uint16_t value, PreparedUintOptions options);
        
-        // serialize uint32_t
-        Result serialize_uint32(uint32_t value);
         // serialize uint32_t with max amount of bits specified in order to reduce the required storage space with some extra size optimizations
         // NOTE: passing a value with more bits than the max bits is an undefined behaviour, this is not a validator
-        Result serialize_uint32_max(uint32_t value, uint8_t max_bits);
+        Result serialize_uint32(uint32_t value, PreparedUintOptions options);
 
         // serializes a boolean value
         Result serialize_bool(bool value);
@@ -293,10 +299,8 @@ class Deserializer {
         // deserialize uint16_t with max amount of bits specified in order to reduce the required storage space
         Result deserialize_uint16(PreparedUintOptions options, uint16_t* value);
 
-        // deserialize uint32_t
-        Result deserialize_uint32(uint32_t* value);
         // deserialize uint32_t with max amount of bits specified in order to reduce the required storage space
-        Result deserialize_uint32_max(uint8_t max_bits, uint32_t* value);
+        Result deserialize_uint32(PreparedUintOptions options, uint32_t* value);
 
         // Deserialize bool, returns false on failure with an error in the result
         Result deserialize_bool(bool* value);
