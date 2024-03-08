@@ -56,9 +56,9 @@ struct SerializerFreeBits{
 // Internal
 // a byte with some free bits in it for read
 struct DeserializerFreeBits {
+    size_t start;
+    size_t end;
     uint8_t byte;
-    uint8_t start;
-    uint8_t end;
 };
 
 
